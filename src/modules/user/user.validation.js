@@ -45,3 +45,9 @@ export const changePassVal = joi.object({
   newPass: generalFields.password.required(),
   cPassword: joi.string().valid(joi.ref("newPass")).required(),
 });
+
+export const googleLoginVal = {
+  body: joi.object({
+    idToken: joi.string().required(),
+  }),
+};

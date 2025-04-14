@@ -7,6 +7,7 @@ import {
   changePassVal,
   updatePasswordVal,
   forgetPassVal,
+  googleLoginVal,
 } from "./user.validation.js";
 import { asyncHandler } from "../../middleware/asyncHandler.js";
 import {
@@ -21,6 +22,7 @@ import {
   updateUser,
   updatePassword,
   verifyAcc,
+  googleLogin,
 } from "./user.controller.js";
 import { roles } from "../../utils/constants/enums.js";
 import { isAuthenticated } from "../../middleware/authentication.js";
@@ -80,5 +82,8 @@ userRouter.put(
   isValid(changePassVal),
   asyncHandler(changePassword)
 );
+
+// Google OAuth login
+userRouter.post("/google-login", isValid(googleLoginVal), asyncHandler(googleLogin));
 
 export default userRouter;

@@ -7,6 +7,7 @@ import { generateOTP } from "../../utils/otp.js";
 import { hashPassword } from "../../utils/pass.js";
 import { generateToken, verifyToken } from "../../utils/token.js";
 import bcrypt from "bcrypt";
+import { OAuth2Client } from "google-auth-library";
 
 //signup
 export const signup = async (req, res, next) => {
@@ -378,5 +379,61 @@ export const logout = async (req, res, next) => {
   return res.status(200).json({
     success: true,
     message: "Logged out successfully",
+  });
+};
+
+// Google OAuth login
+export const googleLogin = async (req, res, next) => {
+  // get data from req
+  const { idToken } = req.body;
+  
+  // verify token with google
+  const client = new OAuth2Client();
+  const ticket = await client.verifyIdToken({
+    idToken,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+  const payload = ticket.getPayload();
+  const { email, name } = payload;
+
+  // check if user exist
+  let userExist = await User.findOne({ email });
+  
+  if (!userExist) {
+    // create new user if doesn't exist
+    userExist = await User.create({
+      firstName: name.split(' ')[0],
+      lastName: name.split(' ').slice(1).join(' '),
+      email,
+      profilePic: picture,
+      emailStatus: emailStatus.VERIFIED, // Google accounts are pre-verified
+      provider: "google",
+    });
+  }
+
+  // generate tokens
+  const accessToken = generateToken({ 
+    payload: { email, _id: userExist._id },
+    options: { expiresIn: "1h" }
+  });
+  
+  const refreshToken = generateToken({ 
+    payload: { email, _id: userExist._id },
+    options: { expiresIn: "7d" }
+  });
+
+  // update user status
+  await User.findOneAndUpdate(
+    { _id: userExist._id },
+    { status: status.ONLINE }
+  );
+
+  // send response
+  return res.status(200).json({
+    success: true,
+    message: "Login successful",
+    accessToken,
+    refreshToken,
+    data: userExist
   });
 };
