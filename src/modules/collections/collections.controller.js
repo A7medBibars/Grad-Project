@@ -1,4 +1,4 @@
-import { Collection } from "../../../db/models/collections.model.js";
+import { Collection } from "../../../db/index.js";
 import { AppError } from "../../utils/appError.js";
 import { messages } from "../../utils/constants/messages.js";
 
