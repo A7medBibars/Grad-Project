@@ -193,8 +193,8 @@ export const deleteUser = async (req, res, next) => {
   }
 
   //delete user
-  const deletedUser = await userExist.deleteOne(req.authUser._id);
-  if (!deletedUser) {
+  const deletedUser = await User.deleteOne({ _id: req.authUser._id });
+  if (!deletedUser || deletedUser.deletedCount === 0) {
     return next(new AppError(messages.user.failToDelete, 404));
   }
 
@@ -384,56 +384,53 @@ export const logout = async (req, res, next) => {
 
 // Google OAuth login
 export const googleLogin = async (req, res, next) => {
-  // get data from req
-  const { idToken } = req.body;
-  
-  // verify token with google
-  const client = new OAuth2Client();
-  const ticket = await client.verifyIdToken({
-    idToken,
-    audience: process.env.GOOGLE_CLIENT_ID,
-  });
-  const payload = ticket.getPayload();
-  const { email, name } = payload;
-
-  // check if user exist
-  let userExist = await User.findOne({ email });
-  
-  if (!userExist) {
-    // create new user if doesn't exist
-    userExist = await User.create({
-      firstName: name.split(' ')[0],
-      lastName: name.split(' ').slice(1).join(' '),
-      email,
-      profilePic: picture,
-      emailStatus: emailStatus.VERIFIED, // Google accounts are pre-verified
-      provider: "google",
+  try {
+    // get data from req
+    const { idToken } = req.body;
+    
+    // verify token with google
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    // check if user exist
+    let userExist = await User.findOne({ email });
+    
+    if (!userExist) {
+      // create new user if doesn't exist
+      userExist = await User.create({
+        firstName: name.split(' ')[0],
+        lastName: name.split(' ').slice(1).join(' '),
+        email,
+        profilePic: picture,
+        emailStatus: emailStatus.VERIFIED, // Google accounts are pre-verified
+        googleId: payload.sub // Store Google ID
+      });
+    }
+
+    // generate token
+    const token = generateToken({ 
+      payload: { email, _id: userExist._id }
+    });
+    
+    // update user status
+    await User.findOneAndUpdate(
+      { _id: userExist._id },
+      { status: status.ONLINE }
+    );
+
+    // send response
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      data: userExist
+    });
+  } catch (error) {
+    return next(new AppError("Google authentication failed: " + error.message, 401));
   }
-
-  // generate tokens
-  const accessToken = generateToken({ 
-    payload: { email, _id: userExist._id },
-    options: { expiresIn: "1h" }
-  });
-  
-  const refreshToken = generateToken({ 
-    payload: { email, _id: userExist._id },
-    options: { expiresIn: "7d" }
-  });
-
-  // update user status
-  await User.findOneAndUpdate(
-    { _id: userExist._id },
-    { status: status.ONLINE }
-  );
-
-  // send response
-  return res.status(200).json({
-    success: true,
-    message: "Login successful",
-    accessToken,
-    refreshToken,
-    data: userExist
-  });
 };
