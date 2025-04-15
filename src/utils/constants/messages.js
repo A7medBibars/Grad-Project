@@ -23,4 +23,15 @@ const generateMessage = (entity) => ({
     collection: {
       ...generateMessage("collection"),
     },
-    };
+    media: {
+      ...generateMessage("media"),
+      fileRequired: "Please upload a file",
+      filesRequired: "Please upload at least one file",
+      uploadFailed: "Failed to upload file to cloud storage",
+      uploadSuccess: "Media uploaded successfully",
+      multipleUploadSuccess: "Media files uploaded successfully",
+      failToSave: "Failed to save media information",
+      deleteSuccess: "Media deleted successfully",
+      notAuthorized: "You are not authorized to delete this media"
+    }
+  };

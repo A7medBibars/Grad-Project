@@ -7,6 +7,9 @@ import { connectDB } from "./db/connection.js";
 import { globalErrorHandling } from "./src/middleware/asyncHandler.js";
 import * as allRouters from "./src/index.js";
 
+// Load environment variables
+dotenv.config();
+
 //init app
 const app = express();
 
@@ -17,12 +20,16 @@ connectDB();
 // parse
 app.use(express.json());
 
-//global error handling
-app.use(globalErrorHandling);
+// serve static files from uploads folder
+app.use('/uploads', express.static('uploads'));
 
 // routes
 app.use("/user", allRouters.userRouter);
 app.use("/collections", allRouters.collectionRouter);
+app.use("/media", allRouters.mediaRouter);
+
+//global error handling
+app.use(globalErrorHandling);
 
 //listen
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
