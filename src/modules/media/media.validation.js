@@ -4,7 +4,6 @@ export const uploadMediaVal = {
   body: Joi.object({
     title: Joi.string().trim(),
     description: Joi.string().trim(),
-    tags: Joi.string(), // Will be parsed as JSON in controller
     collectionId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).messages({
       'string.pattern.base': 'Collection ID must be a valid MongoDB ObjectId'
     })
@@ -21,7 +20,6 @@ export const updateMediaVal = {
   body: Joi.object({
     title: Joi.string().trim(),
     description: Joi.string().trim(),
-    tags: Joi.string(), // Will be parsed as JSON in controller
     collectionId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null).messages({
       'string.pattern.base': 'Collection ID must be a valid MongoDB ObjectId'
     })

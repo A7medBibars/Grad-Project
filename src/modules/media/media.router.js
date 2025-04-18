@@ -18,7 +18,7 @@ const mediaRouter = Router();
 mediaRouter.post(
   "/upload",
   isAuthenticated(),
-  handleSingleUpload,
+  handleSingleUpload(),
   isValid(uploadMediaVal),
   asyncHandler(uploadMedia)
 );
@@ -27,7 +27,7 @@ mediaRouter.post(
 mediaRouter.post(
   "/upload-multiple",
   isAuthenticated(),
-  handleMultipleUploads,
+  handleMultipleUploads(),
   isValid(uploadMediaVal),
   asyncHandler(uploadMultipleMedia)
 );

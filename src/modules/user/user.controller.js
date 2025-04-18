@@ -8,6 +8,9 @@ import { hashPassword } from "../../utils/pass.js";
 import { generateToken, verifyToken } from "../../utils/token.js";
 import bcrypt from "bcrypt";
 import { OAuth2Client } from "google-auth-library";
+import dotenv from "dotenv";
+
+dotenv.config({ path: "./config/.env" });
 
 //signup
 export const signup = async (req, res, next) => {

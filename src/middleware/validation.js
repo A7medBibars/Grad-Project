@@ -46,14 +46,43 @@ export const generalFields = {
  */
 export const isValid = (schema) => {
   return (req, res, next) => {
-    let data = { ...req.body, ...req.query, ...req.params };
-    const { error } = schema.validate(data, { abortEarly: false });
-    if (error) {
-      const errArr = [];
-      error.details.forEach((err) => errArr.push(err.message));
+    const validationErrors = [];
 
-      return next(new AppError(errArr, 400));
+    // Check if schema has nested body, params, or query objects
+    if (schema.body) {
+      const { error } = schema.body.validate(req.body, { abortEarly: false });
+      if (error) {
+        error.details.forEach((err) => validationErrors.push(err.message));
+      }
     }
+
+    if (schema.params) {
+      const { error } = schema.params.validate(req.params, { abortEarly: false });
+      if (error) {
+        error.details.forEach((err) => validationErrors.push(err.message));
+      }
+    }
+
+    if (schema.query) {
+      const { error } = schema.query.validate(req.query, { abortEarly: false });
+      if (error) {
+        error.details.forEach((err) => validationErrors.push(err.message));
+      }
+    }
+
+    // If we have a schema without nested properties, try to validate directly
+    if (!schema.body && !schema.params && !schema.query && schema.validate && typeof schema.validate === 'function') {
+      const data = { ...req.body, ...req.query, ...req.params };
+      const { error } = schema.validate(data, { abortEarly: false });
+      if (error) {
+        error.details.forEach((err) => validationErrors.push(err.message));
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      return next(new AppError(validationErrors, 400));
+    }
+    
     next();
   };
 };

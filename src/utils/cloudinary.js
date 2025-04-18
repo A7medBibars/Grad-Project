@@ -2,7 +2,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import dotenv from 'dotenv';
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: "./config/.env" });
 
 // Configure Cloudinary
 cloudinary.config({
@@ -25,7 +25,8 @@ export const uploadToCloudinary = async (filePath, folder) => {
       resource_type: result.resource_type
     };
   } catch (error) {
-    throw new Error(`Error uploading to Cloudinary: ${error.message}`);
+    console.error(`Error uploading to Cloudinary: ${error.message}`);
+    return null;
   }
 };
 
@@ -35,6 +36,7 @@ export const deleteFromCloudinary = async (publicId, resourceType = 'image') => 
     await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
     return { success: true };
   } catch (error) {
-    throw new Error(`Error deleting from Cloudinary: ${error.message}`);
+    console.error(`Error deleting from Cloudinary: ${error.message}`);
+    return { success: false };
   }
 }; 

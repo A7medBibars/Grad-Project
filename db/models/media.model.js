@@ -38,10 +38,6 @@ const mediaSchema = new Schema({
     ref: 'User',
     required: [true, 'User ID is required']
   },
-  tags: [{
-    type: String,
-    trim: true
-  }]
 }, {
   timestamps: true
 });

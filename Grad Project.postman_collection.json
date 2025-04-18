@@ -1,0 +1,356 @@
+{
+	"info": {
+		"_postman_id": "2f756e7c-5eff-4d5c-9ddd-6bac4c64816b",
+		"name": "Grad Project",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "19343339"
+	},
+	"item": [
+		{
+			"name": "user",
+			"item": [
+				{
+					"name": "signup",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"firstName\":\"Ahmed\",\r\n    \"lastName\":\"Bebars\",\r\n    \"email\":\"42021412@hti.edu.eg\",\r\n    \"password\":\"Ahmed@42021412\",\r\n    \"cPassword\":\"Ahmed@42021412\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/user/signup",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"signup"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\": \"42021412@hti.edu.eg\",\r\n    \"password\": \"Ahmed@42021412\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/user/login",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "token",
+								"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IjQyMDIxNDEyQGh0aS5lZHUuZWciLCJfaWQiOiI2N2ZhODhiMjJkYmJiOWI5MzVjNmE2MTgiLCJpYXQiOjE3NDQ0NzI0NTQsImV4cCI6MTc0NDU1ODg1NH0.JedVmcBfarOLlzSK0vKoQ37lNyx8Lec4k92GeGDQm8U",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "localhost:3000/user/logout",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "token",
+								"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFobWVkLmJlYmFyczIwMDFAZ21haWwuY29tIiwiX2lkIjoiNjdmOTZlODkxNDdmMDM4MDhjYmQ5YTA0IiwiaWF0IjoxNzQ0NDAwMjEyfQ.ExHxTjaJ-_LYqPRCiC1KVPxFHK85-WMIBJ-BcRXYvyY",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "localhost:3000/user/profile",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "token",
+								"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFobWVkLmJlYmFyczIwMDFAZ21haWwuY29tIiwiX2lkIjoiNjdmOTZlODkxNDdmMDM4MDhjYmQ5YTA0IiwiaWF0IjoxNzQ0NDcxNjU5LCJleHAiOjE3NDQ1NTgwNTl9.g2JChqte6KVH2jR6SMPssG3Iwtot_JxJRsG5QGttk38",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"phone\":\"01091025465\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/user/update",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"update"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "forget password",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\":\"ahmed.bebars2001@gmail.com\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/user/forget-password",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"forget-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "change pass",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"email\":\"ahmed.bebars2001@gmail.com\",\r\n    \"otp\":838707,\r\n    \"newPass\":\"Ahmed@42021412\",\r\n    \"cPassword\":\"Ahmed@42021412\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/user/change-password",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"change-password"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "update pass",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "token",
+								"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFobWVkLmJlYmFyczIwMDFAZ21haWwuY29tIiwiX2lkIjoiNjdmOTZlODkxNDdmMDM4MDhjYmQ5YTA0IiwiaWF0IjoxNzQ0NDcwODQzLCJleHAiOjE3NDQ1NTcyNDN9.7EW7yTvIS-bTo9qHzNwQT8hhT6vbcM-ApWj8c7-wiDo",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"oldPassword\":\"Ahmed@42021412\",\r\n    \"newPassword\":\"Ahmed@42021412\",\r\n    \"cPassword\":\"Ahmed@42021412\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/user/update-password",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"user",
+								"update-password"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "collections",
+			"item": [
+				{
+					"name": "create",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "token",
+								"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IjQyMDIxNDEyQGh0aS5lZHUuZWciLCJfaWQiOiI2N2ZhOGFhMWJkMWU2ZTcyZjJmYzhkM2YiLCJpYXQiOjE3NDQ0NzM5MzAsImV4cCI6MTc0NDU2MDMzMH0.P5oFjlRh5ASob5mhMXmA8E5XKqkP-nmxYrVtSLyUGDs",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\":\"collection 1\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/collections/create",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"collections",
+								"create"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "edit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var template = `\r",
+									"<style type=\"text/css\">\r",
+									"    .tftable {font-size:14px;color:#333333;width:100%;border-width: 1px;border-color: #87ceeb;border-collapse: collapse;}\r",
+									"    .tftable th {font-size:18px;background-color:#87ceeb;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;text-align:left;}\r",
+									"    .tftable tr {background-color:#ffffff;}\r",
+									"    .tftable td {font-size:14px;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;}\r",
+									"    .tftable tr:hover {background-color:#e0ffff;}\r",
+									"</style>\r",
+									"\r",
+									"<table class=\"tftable\" border=\"1\">\r",
+									"    <tr>\r",
+									"        <th>ID</th>\r",
+									"        <th>Name</th>\r",
+									"        <th>Created By</th>\r",
+									"        <th>Created At</th>\r",
+									"        <th>Updated At</th>\r",
+									"    </tr>\r",
+									"    <tr>\r",
+									"        <td>{{response.data.id}}</td>\r",
+									"        <td>{{response.data.name}}</td>\r",
+									"        <td>{{response.data.createdBy.firstName}} {{response.data.createdBy.lastName}}</td>\r",
+									"        <td>{{response.data.createdAt}}</td>\r",
+									"        <td>{{response.data.updatedAt}}</td>\r",
+									"    </tr>\r",
+									"</table>\r",
+									"`;\r",
+									"\r",
+									"function constructVisualizerPayload() {\r",
+									"    var res = pm.response.json();\r",
+									"    return {response: res};\r",
+									"}\r",
+									"\r",
+									"pm.visualizer.set(template, constructVisualizerPayload());"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\":\"collection\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:3000/collections/67fa90042846b3784eb7d1d5",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"collections",
+								"67fa90042846b3784eb7d1d5"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

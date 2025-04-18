@@ -11,8 +11,7 @@ export const uploadMedia = async (req, res, next) => {
   if (!file) {
     return next(new AppError(messages.media.fileRequired, 400));
   }
-  const { title, description, tags, collectionId } = req.body;
-  const tagArray = tags ? JSON.parse(tags) : [];
+  const { title, description, collectionId } = req.body;
 
   // upload to cloudinary
   const folder = 'media_uploads';
@@ -35,8 +34,7 @@ export const uploadMedia = async (req, res, next) => {
     format: cloudinaryResult.format,
     size: file.size,
     collectionId: collectionId || null,
-    uploadedBy: req.authUser._id,
-    tags: tagArray
+    uploadedBy: req.authUser._id
   });
 
   // save data
@@ -75,8 +73,7 @@ export const uploadMultipleMedia = async (req, res, next) => {
   if (!files || files.length === 0) {
     return next(new AppError(messages.media.filesRequired, 400));
   }
-  const { title, description, tags, collectionId } = req.body;
-  const tagArray = tags ? JSON.parse(tags) : [];
+  const { title, description, collectionId } = req.body;
 
   // Keep track of processed files for cleanup
   const processedFiles = [];
@@ -101,8 +98,7 @@ export const uploadMultipleMedia = async (req, res, next) => {
       format: cloudinaryResult.format,
       size: file.size,
       collectionId: collectionId || null,
-      uploadedBy: req.authUser._id,
-      tags: tagArray
+      uploadedBy: req.authUser._id
     });
 
     // save data

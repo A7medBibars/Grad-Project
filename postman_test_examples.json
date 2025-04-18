@@ -1,0 +1,299 @@
+{
+  "endpoints": [
+    {
+      "name": "Health Check",
+      "method": "GET",
+      "url": "http://localhost:3000/",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "notes": "Basic health check to ensure the server is running."
+    },
+    {
+      "section": "User API Endpoints",
+      "endpoints": [
+        {
+          "name": "User Signup",
+          "method": "POST",
+          "url": "http://localhost:3000/user/signup",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "firstName": "John",
+            "lastName": "Doe",
+            "email": "john.doe@example.com",
+            "password": "Password123!",
+            "cPassword": "Password123!",
+            "phone": "00201123456789",
+            "DOB": "1990-01-01"
+          },
+          "notes": "Creates a new user account. Password must contain uppercase, lowercase, number, and special character."
+        },
+        {
+          "name": "Verify Account",
+          "method": "GET",
+          "url": "http://localhost:3000/user/verify/YOUR_VERIFICATION_TOKEN",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "Verifies user email with token sent to their email."
+        },
+        {
+          "name": "User Login",
+          "method": "POST",
+          "url": "http://localhost:3000/user/login",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "email": "john.doe@example.com",
+            "password": "Password123!"
+          },
+          "notes": "Login with email and password. Can also login with phone instead of email."
+        },
+        {
+          "name": "User Logout",
+          "method": "POST",
+          "url": "http://localhost:3000/user/logout",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "notes": "Logs out a user. Requires authentication."
+        },
+        {
+          "name": "Update User Profile",
+          "method": "PUT",
+          "url": "http://localhost:3000/user/update",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "body": {
+            "firstName": "John",
+            "lastName": "Smith",
+            "email": "john.smith@example.com",
+            "phone": "00201123456789",
+            "DOB": "1990-01-01"
+          },
+          "notes": "Updates user profile information. Requires authentication."
+        },
+        {
+          "name": "Update Password",
+          "method": "PUT",
+          "url": "http://localhost:3000/user/update-password",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "body": {
+            "oldPassword": "Password123!",
+            "newPassword": "NewPassword123!",
+            "cPassword": "NewPassword123!"
+          },
+          "notes": "Updates password. Requires authentication."
+        },
+        {
+          "name": "Delete User",
+          "method": "DELETE",
+          "url": "http://localhost:3000/user/delete",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "notes": "Deletes user account. Requires authentication."
+        },
+        {
+          "name": "Get User Profile",
+          "method": "GET",
+          "url": "http://localhost:3000/user/profile",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "notes": "Gets current user's profile information. Requires authentication."
+        },
+        {
+          "name": "Get User by ID",
+          "method": "GET",
+          "url": "http://localhost:3000/user/65f08c5e1a2b3c4d5e6f7890",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "Gets user information by ID."
+        },
+        {
+          "name": "Forget Password",
+          "method": "POST",
+          "url": "http://localhost:3000/user/forget-password",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "email": "john.doe@example.com"
+          },
+          "notes": "Initiates password reset process."
+        },
+        {
+          "name": "Change Password (with OTP)",
+          "method": "PUT",
+          "url": "http://localhost:3000/user/change-password",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "email": "john.doe@example.com",
+            "otp": 123456,
+            "newPass": "NewPassword123!",
+            "cPassword": "NewPassword123!"
+          },
+          "notes": "Changes password using OTP sent to email."
+        },
+        {
+          "name": "Google Login",
+          "method": "POST",
+          "url": "http://localhost:3000/user/google-login",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "idToken": "GOOGLE_ID_TOKEN_HERE"
+          },
+          "notes": "Login/signup with Google OAuth token."
+        }
+      ]
+    },
+    {
+      "section": "Collections API Endpoints",
+      "endpoints": [
+        {
+          "name": "Create Collection",
+          "method": "POST",
+          "url": "http://localhost:3000/collections/create",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "body": {
+            "name": "My Collection"
+          },
+          "notes": "Creates a new collection. Requires authentication."
+        },
+        {
+          "name": "Get All Collections",
+          "method": "GET",
+          "url": "http://localhost:3000/collections",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "Gets all collections."
+        },
+        {
+          "name": "Get Collection by ID",
+          "method": "GET",
+          "url": "http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "Gets collection by ID."
+        },
+        {
+          "name": "Update Collection",
+          "method": "PUT",
+          "url": "http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "name": "Updated Collection Name"
+          },
+          "notes": "Updates collection information."
+        },
+        {
+          "name": "Delete Collection",
+          "method": "DELETE",
+          "url": "http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "Deletes collection by ID."
+        }
+      ]
+    },
+    {
+      "section": "Media API Endpoints",
+      "endpoints": [
+        {
+          "name": "Upload Single Media",
+          "method": "POST",
+          "url": "http://localhost:3000/media/upload",
+          "headers": {
+            "Content-Type": "multipart/form-data",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "formData": {
+            "file": "[Select file to upload]",
+            "title": "My Media Title",
+            "description": "This is a description of my media upload",
+            "collectionId": "65f08c5e1a2b3c4d5e6f7890"
+          },
+          "notes": "Requires authentication. The collectionId should be a valid MongoDB ObjectId."
+        },
+        {
+          "name": "Upload Multiple Media",
+          "method": "POST",
+          "url": "http://localhost:3000/media/upload-multiple",
+          "headers": {
+            "Content-Type": "multipart/form-data",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "formData": {
+            "files": "[Select multiple files to upload]",
+            "title": "Multiple Media Upload",
+            "description": "This is a batch upload of multiple files",
+            "collectionId": "65f08c5e1a2b3c4d5e6f7890"
+          },
+          "notes": "Requires authentication. The collectionId should be a valid MongoDB ObjectId."
+        },
+        {
+          "name": "Get Media By ID",
+          "method": "GET",
+          "url": "http://localhost:3000/media/65f08c5e1a2b3c4d5e6f7890",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "No authentication required. Replace the ID in the URL with a valid media ID."
+        },
+        {
+          "name": "Get Media By Collection",
+          "method": "GET",
+          "url": "http://localhost:3000/media/collection/65f08c5e1a2b3c4d5e6f7890",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "No authentication required. Replace the ID in the URL with a valid collection ID."
+        },
+        {
+          "name": "Delete Media",
+          "method": "DELETE",
+          "url": "http://localhost:3000/media/65f08c5e1a2b3c4d5e6f7890",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "notes": "Requires authentication. Replace the ID in the URL with a valid media ID."
+        }
+      ]
+    }
+  ],
+  "sampleData": {
+    "validObjectId": "65f08c5e1a2b3c4d5e6f7890",
+    "jwtTokenFormat": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NWYwOGM1ZTFhMmIzYzRkNWU2Zjc4OTAiLCJpYXQiOjE2MjM0NTY3ODksImV4cCI6MTYyMzQ2MDM4OX0.EXAMPLE_SIGNATURE"
+  },
+  "instructions": {
+    "setup": "Import this collection in Postman. You'll need to replace the sample MongoDB ObjectIds with real IDs from your database and update the JWT token with your actual authentication token.",
+    "uploadFiles": "For file upload endpoints, use the Postman UI to select files in the form-data section.",
+    "authentication": "After login, copy the JWT token from the response and use it in the Authorization header for authenticated endpoints."
+  }
+} 

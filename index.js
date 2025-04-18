@@ -106,8 +106,16 @@ app.get(
   }
 );
 
+// Add a basic health check route
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
 //global error handling
 app.use(globalErrorHandling);
 
-//listen
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+//listen - bind to all interfaces by using '0.0.0.0'
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Server accessible at http://localhost:${PORT}`);
+});

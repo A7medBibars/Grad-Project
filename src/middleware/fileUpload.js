@@ -45,41 +45,39 @@ export const uploadMultiple = multer({
 }).array('files', 5); // Allow up to 5 files
 
 // Middleware wrapper for single file upload
-export const handleSingleUpload = (req, res, next) => {
-  uploadSingle(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      // A Multer error occurred
-      return next(new AppError(`Multer error: ${err.message}`, 400));
-    } else if (err) {
-      // An unknown error occurred
-      return next(err);
-    }
-    
-    // Check if file exists
-    if (!req.file) {
-      return next(new AppError('Please upload a file', 400));
-    }
-    
-    next();
-  });
+export const handleSingleUpload = () => {
+  return (req, res, next) => {
+    uploadSingle(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        // A Multer error occurred
+        return next(new AppError(`Multer error: ${err.message}`, 400));
+      } else if (err) {
+        // An unknown error occurred
+        return next(err);
+      }
+      
+      // File is optional in this middleware
+      // Let the controller decide if it's required
+      next();
+    });
+  };
 };
 
 // Middleware wrapper for multiple file upload
-export const handleMultipleUploads = (req, res, next) => {
-  uploadMultiple(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      // A Multer error occurred
-      return next(new AppError(`Multer error: ${err.message}`, 400));
-    } else if (err) {
-      // An unknown error occurred
-      return next(err);
-    }
-    
-    // Check if files exist
-    if (!req.files || req.files.length === 0) {
-      return next(new AppError('Please upload at least one file', 400));
-    }
-    
-    next();
-  });
+export const handleMultipleUploads = () => {
+  return (req, res, next) => {
+    uploadMultiple(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        // A Multer error occurred
+        return next(new AppError(`Multer error: ${err.message}`, 400));
+      } else if (err) {
+        // An unknown error occurred
+        return next(err);
+      }
+      
+      // Files are optional in this middleware
+      // Let the controller decide if they're required
+      next();
+    });
+  };
 }; 

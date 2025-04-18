@@ -1,5 +1,5 @@
 import { AppError } from "../utils/appError.js";
-import { deleteCloudFile } from "../utils/cloud.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.js";
 
 export const asyncHandler = (fn) => {
   return (req, res, next) => {
@@ -24,11 +24,15 @@ export const asyncHandler = (fn) => {
 export const globalErrorHandling = async (err, req, res, next) => {
   // rollback cloud
   if (req.failFile) {
-    await deleteCloudFile(req.failFile.public_id);
+    await deleteFromCloudinary(req.failFile.public_id, req.failFile.resource_type || 'image');
   }
   if (req.failFiles?.length > 0) {
-    for (const public_id of req.failFiles) {
-      await deleteCloudFile(public_id);
+    for (const file of req.failFiles) {
+      if (typeof file === 'string') {
+        await deleteFromCloudinary(file);
+      } else if (file?.public_id) {
+        await deleteFromCloudinary(file.public_id, file.resource_type || 'image');
+      }
     }
   }
   return res
