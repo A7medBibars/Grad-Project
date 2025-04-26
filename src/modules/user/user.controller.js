@@ -15,7 +15,7 @@ dotenv.config({ path: "./config/.env" });
 //signup
 export const signup = async (req, res, next) => {
   //get data
-  let { firstName, lastName, email, password, phone, DOB } = req.body;
+  let { name, email, password, phone, DOB } = req.body;
 
   // check if user exist
   const userExist = await User.findOne({ $or: [{ email }, { phone }] });
@@ -31,8 +31,7 @@ export const signup = async (req, res, next) => {
 
   // create user
   const user = new User({
-    firstName,
-    lastName,
+    name,
     email,
     password,
     phone,
@@ -406,8 +405,7 @@ export const googleLogin = async (req, res, next) => {
     if (!userExist) {
       // create new user if doesn't exist
       userExist = await User.create({
-        firstName: name.split(' ')[0],
-        lastName: name.split(' ').slice(1).join(' '),
+        name,
         email,
         profilePic: picture,
         emailStatus: emailStatus.VERIFIED, // Google accounts are pre-verified
@@ -435,5 +433,30 @@ export const googleLogin = async (req, res, next) => {
     });
   } catch (error) {
     return next(new AppError("Google authentication failed: " + error.message, 401));
+  }
+};
+
+// Get user collections
+export const getUserCollections = async (req, res, next) => {
+  try {
+    // Get user with populated collections
+    const user = await User.findById(req.authUser._id)
+      .populate({
+        path: 'collections',
+        select: 'name createdAt'
+      });
+
+    if (!user) {
+      return next(new AppError(messages.user.notFound, 404));
+    }
+
+    // Send response
+    return res.status(200).json({
+      success: true,
+      message: "Collections retrieved successfully",
+      data: user.collections
+    });
+  } catch (error) {
+    return next(new AppError("Failed to retrieve collections: " + error.message, 500));
   }
 };

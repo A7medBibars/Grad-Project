@@ -1,7 +1,6 @@
 import { Media } from "../../../db/index.js";
 import { AppError } from "../../utils/appError.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../../utils/cloudinary.js";
-import fs from 'fs';
 import { messages } from "../../utils/constants/messages.js";
 
 // Upload a single file
@@ -15,12 +14,8 @@ export const uploadMedia = async (req, res, next) => {
 
   // upload to cloudinary
   const folder = 'media_uploads';
-  const cloudinaryResult = await uploadToCloudinary(file.path, folder);
+  const cloudinaryResult = await uploadToCloudinary(file, folder);
   if (!cloudinaryResult) {
-    // Clean up temporary file if it exists
-    if (file.path && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
     return next(new AppError(messages.media.uploadFailed, 500));
   }
 
@@ -40,16 +35,9 @@ export const uploadMedia = async (req, res, next) => {
   // save data
   const savedMedia = await media.save();
   if (!savedMedia) {
-    // Clean up temporary file if it exists
-    if (file.path && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
+    // Rollback cloudinary upload
+    await deleteFromCloudinary(cloudinaryResult.public_id, cloudinaryResult.resource_type);
     return next(new AppError(messages.media.failToSave, 500));
-  }
-
-  // clean up temporary file
-  if (file.path && fs.existsSync(file.path)) {
-    fs.unlinkSync(file.path);
   }
 
   // populate the user who uploaded the media
@@ -75,18 +63,23 @@ export const uploadMultipleMedia = async (req, res, next) => {
   }
   const { title, description, collectionId } = req.body;
 
-  // Keep track of processed files for cleanup
-  const processedFiles = [];
+  // Keep track of uploaded files for rollback
+  const uploadedFiles = [];
   
   // process each file
   const uploadPromises = files.map(async (file) => {
     // upload to cloudinary
     const folder = 'media_uploads';
-    const cloudinaryResult = await uploadToCloudinary(file.path, folder);
+    const cloudinaryResult = await uploadToCloudinary(file, folder);
     if (!cloudinaryResult) {
-      processedFiles.push(file.path);
       throw new AppError(messages.media.uploadFailed, 500);
     }
+
+    // Track uploaded file for potential rollback
+    uploadedFiles.push({
+      public_id: cloudinaryResult.public_id,
+      resource_type: cloudinaryResult.resource_type
+    });
 
     // prepare data
     const media = new Media({
@@ -104,14 +97,7 @@ export const uploadMultipleMedia = async (req, res, next) => {
     // save data
     const savedMedia = await media.save();
     if (!savedMedia) {
-      processedFiles.push(file.path);
       throw new AppError(messages.media.failToSave, 500);
-    }
-
-    // clean up temporary file
-    if (file.path && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-      processedFiles.push(file.path);
     }
 
     return savedMedia._id;
@@ -123,14 +109,9 @@ export const uploadMultipleMedia = async (req, res, next) => {
   // Check for errors
   const errors = results.filter(result => result instanceof Error);
   if (errors.length > 0) {
-    // clean up any remaining temporary files
-    if (files && Array.isArray(files)) {
-      files.forEach(file => {
-        // Only delete files that weren't already processed
-        if (file.path && fs.existsSync(file.path) && !processedFiles.includes(file.path)) {
-          fs.unlinkSync(file.path);
-        }
-      });
+    // Rollback all successful uploads
+    for (const file of uploadedFiles) {
+      await deleteFromCloudinary(file.public_id, file.resource_type);
     }
     return next(new AppError(errors[0].message || messages.media.uploadFailed, 500));
   }

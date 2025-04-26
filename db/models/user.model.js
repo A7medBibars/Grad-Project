@@ -4,11 +4,7 @@ import { emailStatus, roles, status } from "../../src/utils/constants/enums.js";
 //schema
 const userSchema = new Schema(
   {
-    firstName: {
-      type: String,
-      required: true,
-    },
-    lastName: {
+    name: {
       type: String,
       required: true,
     },
@@ -28,7 +24,6 @@ const userSchema = new Schema(
       unique: true,
       sparse: true,
     },
-
     DOB: {
       type: String,
       default: new Date(),
@@ -36,9 +31,6 @@ const userSchema = new Schema(
     phone: {
       type: String,
       unique: true,
-      // required: function() {
-      //   return !this.googleId; // Phone is required only if not using Google auth
-      // },
     },
     role: {
       type: String,
@@ -55,6 +47,10 @@ const userSchema = new Schema(
       enum: Object.values(emailStatus),
       default: emailStatus.PENDING,
     },
+    collections: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Collection'
+    }],
     otp: Number,
     otpExpiry: Date,
   },

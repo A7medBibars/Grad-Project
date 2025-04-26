@@ -23,6 +23,7 @@ import {
   updatePassword,
   verifyAcc,
   googleLogin,
+  getUserCollections,
 } from "./user.controller.js";
 import { roles } from "../../utils/constants/enums.js";
 import { isAuthenticated } from "../../middleware/authentication.js";
@@ -85,5 +86,13 @@ userRouter.put(
 
 // Google OAuth login
 userRouter.post("/google-login", isValid(googleLoginVal), asyncHandler(googleLogin));
+
+// Get user collections
+userRouter.get(
+  "/collections",
+  isAuthenticated(),
+  isAuthorized(roles.USER),
+  asyncHandler(getUserCollections)
+);
 
 export default userRouter;

@@ -2,8 +2,7 @@ import joi from "joi";
 import { generalFields } from "../../middleware/validation.js";
 
 export const signupVal = joi.object({
-  firstName: generalFields.name.required(),
-  lastName: generalFields.name.required(),
+  name: generalFields.name.required(),
   email: generalFields.email.required(),
   password: generalFields.password.required(),
   cPassword: generalFields.cPassword.required(),
@@ -22,8 +21,7 @@ export const loginVal = joi.object({
 });
 
 export const updateUserVal = joi.object({
-  firstName: generalFields.name,
-  lastName: generalFields.name,
+  name: generalFields.name,
   email: generalFields.email,
   phone: generalFields.phone,
   DOB: generalFields.DOB.optional(),
