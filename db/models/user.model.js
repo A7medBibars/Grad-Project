@@ -51,6 +51,10 @@ const userSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'Collection'
     }],
+    records: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Record'
+    }],
     otp: Number,
     otpExpiry: Date,
   },

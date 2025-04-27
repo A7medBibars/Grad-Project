@@ -460,3 +460,45 @@ export const getUserCollections = async (req, res, next) => {
     return next(new AppError("Failed to retrieve collections: " + error.message, 500));
   }
 };
+
+// Get user history (records)
+export const getUserHistory = async (req, res, next) => {
+  try {
+    // Get user with populated records
+    const user = await User.findById(req.authUser._id)
+      .populate({
+        path: 'records',
+        select: 'mediaUrl times emotion collectionId createdAt',
+        populate: {
+          path: 'collectionId',
+          select: 'name'
+        }
+      });
+
+    if (!user) {
+      return next(new AppError(messages.user.notFound, 404));
+    }
+
+    // Format the records data
+    const history = user.records.map(record => ({
+      id: record._id,
+      mediaUrl: record.mediaUrl,
+      times: record.times,
+      emotion: record.emotion,
+      collection: record.collectionId ? {
+        id: record.collectionId._id,
+        name: record.collectionId.name
+      } : null,
+      createdAt: record.createdAt
+    }));
+
+    // Send response
+    return res.status(200).json({
+      success: true,
+      message: "History retrieved successfully",
+      data: history
+    });
+  } catch (error) {
+    return next(new AppError("Failed to retrieve history: " + error.message, 500));
+  }
+};

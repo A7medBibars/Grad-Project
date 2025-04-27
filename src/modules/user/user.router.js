@@ -24,6 +24,7 @@ import {
   verifyAcc,
   googleLogin,
   getUserCollections,
+  getUserHistory,
 } from "./user.controller.js";
 import { roles } from "../../utils/constants/enums.js";
 import { isAuthenticated } from "../../middleware/authentication.js";
@@ -93,6 +94,14 @@ userRouter.get(
   isAuthenticated(),
   isAuthorized(roles.USER),
   asyncHandler(getUserCollections)
+);
+
+// Get user history
+userRouter.get(
+  "/history",
+  isAuthenticated(),
+  isAuthorized(roles.USER),
+  asyncHandler(getUserHistory)
 );
 
 export default userRouter;
