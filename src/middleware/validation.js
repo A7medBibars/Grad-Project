@@ -73,8 +73,8 @@ export const isValid = (schema) => {
     // If we have a schema without nested properties, try to validate directly
     if (!schema.body && !schema.params && !schema.query && schema.validate && typeof schema.validate === 'function') {
       const data = { ...req.body, ...req.query, ...req.params };
-      const { error } = schema.validate(data, { abortEarly: false });
-      if (error) {
+    const { error } = schema.validate(data, { abortEarly: false });
+    if (error) {
         error.details.forEach((err) => validationErrors.push(err.message));
       }
     }
