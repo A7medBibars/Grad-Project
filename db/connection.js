@@ -7,8 +7,16 @@ dotenv.config({ path: "./config/.env" });
 export const connectDB = () => {
   const DB_URI = process.env.DB_URI || "mongodb://127.0.0.1:27017/gradproject";
   
+  // Configure mongoose for Vercel
+  mongoose.set('strictQuery', true);
+  
   mongoose
-    .connect(DB_URI)
+    .connect(DB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    })
     .then(() => {
       console.log("Database connected successfully");
     })

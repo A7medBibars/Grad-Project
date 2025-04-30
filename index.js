@@ -8,6 +8,7 @@ import { globalErrorHandling } from "./src/middleware/asyncHandler.js";
 import * as allRouters from "./src/index.js";
 import { User } from "./db/index.js";
 import { emailStatus, status } from "./src/utils/constants/enums.js";
+import cors from "cors";
 
 // Load environment variables
 dotenv.config({ path: "./config/.env" });
@@ -19,16 +20,25 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 connectDB();
 
+// Configure CORS for Vercel
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "*",
+  credentials: true
+}));
+
 // parse
 app.use(express.json());
 
-// Configure session
+// Configure session for Vercel
 app.use(
   session({
     secret: process.env.JWT_SECRET || 'session_secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: process.env.NODE_ENV === 'production' }
+    cookie: { 
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    }
   })
 );
 
@@ -114,8 +124,11 @@ app.get('/', (req, res) => {
 //global error handling
 app.use(globalErrorHandling);
 
-//listen - bind to all interfaces by using '0.0.0.0'
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Server accessible at http://localhost:${PORT}`);
-});
+// Start server
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+export default app;

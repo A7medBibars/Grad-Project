@@ -21,13 +21,13 @@ The typical authentication flow is:
 2. Verify the account using the verification link sent to email
 3. Log in with the login endpoint
 4. Copy the JWT token from the response
-5. Use this token in the Authorization header for authenticated endpoints
+5. Use this token in the token header for authenticated endpoints
 
 ## User API Endpoints
 
 ### 1. User Signup
 - **Method**: POST
-- **URL**: `http://localhost:3000/user/signup`
+- **URL**: `https://your-vercel-app.vercel.app/user/signup`
 - **Auth Required**: No
 - **Body** (JSON):
   ```json
@@ -45,13 +45,13 @@ The typical authentication flow is:
 
 ### 2. Verify Account
 - **Method**: GET
-- **URL**: `http://localhost:3000/user/verify/YOUR_VERIFICATION_TOKEN`
+- **URL**: `https://your-vercel-app.vercel.app/user/verify/YOUR_VERIFICATION_TOKEN`
 - **Auth Required**: No
 - **Notes**: The verification token is sent to the user's email.
 
 ### 3. User Login
 - **Method**: POST
-- **URL**: `http://localhost:3000/user/login`
+- **URL**: `https://your-vercel-app.vercel.app/user/login`
 - **Auth Required**: No
 - **Body** (JSON):
   ```json
@@ -71,17 +71,17 @@ The typical authentication flow is:
 
 ### 4. User Logout
 - **Method**: POST
-- **URL**: `http://localhost:3000/user/logout`
+- **URL**: `https://your-vercel-app.vercel.app/user/logout`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 
 ### 5. Update User Profile
 - **Method**: PUT
-- **URL**: `http://localhost:3000/user/update`
+- **URL**: `https://your-vercel-app.vercel.app/user/update`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 - **Body** (JSON):
   ```json
   {
@@ -96,10 +96,10 @@ The typical authentication flow is:
 
 ### 6. Update Password
 - **Method**: PUT
-- **URL**: `http://localhost:3000/user/update-password`
+- **URL**: `https://your-vercel-app.vercel.app/user/update-password`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 - **Body** (JSON):
   ```json
   {
@@ -111,27 +111,27 @@ The typical authentication flow is:
 
 ### 7. Delete User
 - **Method**: DELETE
-- **URL**: `http://localhost:3000/user/delete`
+- **URL**: `https://your-vercel-app.vercel.app/user/delete`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 
 ### 8. Get User Profile
 - **Method**: GET
-- **URL**: `http://localhost:3000/user/profile`
+- **URL**: `https://your-vercel-app.vercel.app/user/profile`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 
 ### 9. Get User by ID
 - **Method**: GET
-- **URL**: `http://localhost:3000/user/65f08c5e1a2b3c4d5e6f7890`
+- **URL**: `https://your-vercel-app.vercel.app/user/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: No
 - **Notes**: Replace the ID in the URL with a valid user ID.
 
 ### 10. Forget Password
 - **Method**: POST
-- **URL**: `http://localhost:3000/user/forget-password`
+- **URL**: `https://your-vercel-app.vercel.app/user/forget-password`
 - **Auth Required**: No
 - **Body** (JSON):
   ```json
@@ -143,7 +143,7 @@ The typical authentication flow is:
 
 ### 11. Change Password (with OTP)
 - **Method**: PUT
-- **URL**: `http://localhost:3000/user/change-password`
+- **URL**: `https://your-vercel-app.vercel.app/user/change-password`
 - **Auth Required**: No
 - **Body** (JSON):
   ```json
@@ -158,7 +158,7 @@ The typical authentication flow is:
 
 ### 12. Google Login
 - **Method**: POST
-- **URL**: `http://localhost:3000/user/google-login`
+- **URL**: `https://your-vercel-app.vercel.app/user/google-login`
 - **Auth Required**: No
 - **Body** (JSON):
   ```json
@@ -172,10 +172,10 @@ The typical authentication flow is:
 
 ### 1. Create Collection
 - **Method**: POST
-- **URL**: `http://localhost:3000/collections/create`
+- **URL**: `https://your-vercel-app.vercel.app/collections/create`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 - **Body** (JSON):
   ```json
   {
@@ -185,18 +185,18 @@ The typical authentication flow is:
 
 ### 2. Get All Collections
 - **Method**: GET
-- **URL**: `http://localhost:3000/collections`
+- **URL**: `https://your-vercel-app.vercel.app/collections`
 - **Auth Required**: No
 
 ### 3. Get Collection by ID
 - **Method**: GET
-- **URL**: `http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890`
+- **URL**: `https://your-vercel-app.vercel.app/collections/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: No
 - **Notes**: Replace the ID in the URL with a valid collection ID.
 
 ### 4. Update Collection
 - **Method**: PUT
-- **URL**: `http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890`
+- **URL**: `https://your-vercel-app.vercel.app/collections/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: No
 - **Body** (JSON):
   ```json
@@ -208,7 +208,7 @@ The typical authentication flow is:
 
 ### 5. Delete Collection
 - **Method**: DELETE
-- **URL**: `http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890`
+- **URL**: `https://your-vercel-app.vercel.app/collections/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: No
 - **Notes**: Replace the ID in the URL with a valid collection ID.
 
@@ -216,10 +216,10 @@ The typical authentication flow is:
 
 ### 1. Upload Single Media
 - **Method**: POST
-- **URL**: `http://localhost:3000/media/upload`
+- **URL**: `https://your-vercel-app.vercel.app/media/upload`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 - **Body** (form-data):
   - `file`: Select a file to upload
   - `title`: "My Media Title"
@@ -229,10 +229,10 @@ The typical authentication flow is:
 
 ### 2. Upload Multiple Media
 - **Method**: POST
-- **URL**: `http://localhost:3000/media/upload-multiple`
+- **URL**: `https://your-vercel-app.vercel.app/media/upload-multiple`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 - **Body** (form-data):
   - `files`: Select multiple files to upload
   - `title`: "Multiple Media Upload"
@@ -242,22 +242,22 @@ The typical authentication flow is:
 
 ### 3. Get Media By ID
 - **Method**: GET
-- **URL**: `http://localhost:3000/media/65f08c5e1a2b3c4d5e6f7890`
+- **URL**: `https://your-vercel-app.vercel.app/media/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: No
 - **Notes**: Replace the ID in the URL with a valid media ID.
 
 ### 4. Get Media By Collection
 - **Method**: GET
-- **URL**: `http://localhost:3000/media/collection/65f08c5e1a2b3c4d5e6f7890`
+- **URL**: `https://your-vercel-app.vercel.app/media/collection/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: No
 - **Notes**: Replace the ID in the URL with a valid collection ID.
 
 ### 5. Delete Media
 - **Method**: DELETE
-- **URL**: `http://localhost:3000/media/65f08c5e1a2b3c4d5e6f7890`
+- **URL**: `https://your-vercel-app.vercel.app/media/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: Yes
 - **Headers**:
-  - `Authorization`: Bearer YOUR_JWT_TOKEN_HERE
+  - `token`: YOUR_JWT_TOKEN_HERE
 - **Notes**: Replace the ID in the URL with a valid media ID.
 
 ## General Testing Tips
@@ -269,7 +269,7 @@ The typical authentication flow is:
 
 2. **For authenticated endpoints**:
    - After login, copy the JWT token from the response
-   - In the Headers tab, add `Authorization` with value `Bearer YOUR_JWT_TOKEN_HERE`
+   - In the Headers tab, add `token` with value `YOUR_JWT_TOKEN_HERE`
    - Replace `YOUR_JWT_TOKEN_HERE` with the copied JWT token
 
 3. **When testing with IDs**:
