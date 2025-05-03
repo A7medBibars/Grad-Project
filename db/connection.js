@@ -14,8 +14,9 @@ export const connectDB = () => {
     .connect(DB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 30000,
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000
     })
     .then(() => {
       console.log("Database connected successfully");
