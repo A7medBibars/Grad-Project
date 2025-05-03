@@ -12,8 +12,6 @@ export const connectDB = () => {
   
   mongoose
     .connect(DB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 30000,
       socketTimeoutMS: 45000,
       connectTimeoutMS: 30000
