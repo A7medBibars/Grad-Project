@@ -3,7 +3,7 @@
     {
       "name": "Health Check",
       "method": "GET",
-      "url": "http://localhost:3000/",
+      "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/",
       "headers": {
         "Content-Type": "application/json"
       },
@@ -15,7 +15,7 @@
         {
           "name": "User Signup",
           "method": "POST",
-          "url": "http://localhost:3000/user/signup",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/signup",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -33,7 +33,7 @@
         {
           "name": "Verify Account",
           "method": "GET",
-          "url": "http://localhost:3000/user/verify/YOUR_VERIFICATION_TOKEN",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/verify/YOUR_VERIFICATION_TOKEN",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -42,7 +42,7 @@
         {
           "name": "User Login",
           "method": "POST",
-          "url": "http://localhost:3000/user/login",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/login",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -55,7 +55,7 @@
         {
           "name": "User Logout",
           "method": "POST",
-          "url": "http://localhost:3000/user/logout",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/logout",
           "headers": {
             "Content-Type": "application/json",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -65,7 +65,7 @@
         {
           "name": "Update User Profile",
           "method": "PUT",
-          "url": "http://localhost:3000/user/update",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/update",
           "headers": {
             "Content-Type": "application/json",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -82,7 +82,7 @@
         {
           "name": "Update Password",
           "method": "PUT",
-          "url": "http://localhost:3000/user/update-password",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/update-password",
           "headers": {
             "Content-Type": "application/json",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -97,7 +97,7 @@
         {
           "name": "Delete User",
           "method": "DELETE",
-          "url": "http://localhost:3000/user/delete",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/delete",
           "headers": {
             "Content-Type": "application/json",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -107,7 +107,7 @@
         {
           "name": "Get User Profile",
           "method": "GET",
-          "url": "http://localhost:3000/user/profile",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/profile",
           "headers": {
             "Content-Type": "application/json",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -117,7 +117,7 @@
         {
           "name": "Get User by ID",
           "method": "GET",
-          "url": "http://localhost:3000/user/65f08c5e1a2b3c4d5e6f7890",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/65f08c5e1a2b3c4d5e6f7890",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -126,7 +126,7 @@
         {
           "name": "Forget Password",
           "method": "POST",
-          "url": "http://localhost:3000/user/forget-password",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/forget-password",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -138,7 +138,7 @@
         {
           "name": "Change Password (with OTP)",
           "method": "PUT",
-          "url": "http://localhost:3000/user/change-password",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/change-password",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -153,7 +153,7 @@
         {
           "name": "Google Login",
           "method": "POST",
-          "url": "http://localhost:3000/user/google-login",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/user/google-login",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -170,7 +170,7 @@
         {
           "name": "Create Collection",
           "method": "POST",
-          "url": "http://localhost:3000/collections/create",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/collections/create",
           "headers": {
             "Content-Type": "application/json",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -183,25 +183,25 @@
         {
           "name": "Get All Collections",
           "method": "GET",
-          "url": "http://localhost:3000/collections",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/collections",
           "headers": {
             "Content-Type": "application/json"
           },
-          "notes": "Gets all collections."
+          "notes": "Gets all collections with populated records."
         },
         {
           "name": "Get Collection by ID",
           "method": "GET",
-          "url": "http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/collections/65f08c5e1a2b3c4d5e6f7890",
           "headers": {
             "Content-Type": "application/json"
           },
-          "notes": "Gets collection by ID."
+          "notes": "Gets collection by ID with populated records."
         },
         {
           "name": "Update Collection",
           "method": "PUT",
-          "url": "http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/collections/65f08c5e1a2b3c4d5e6f7890",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -213,11 +213,34 @@
         {
           "name": "Delete Collection",
           "method": "DELETE",
-          "url": "http://localhost:3000/collections/65f08c5e1a2b3c4d5e6f7890",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/collections/65f08c5e1a2b3c4d5e6f7890",
           "headers": {
             "Content-Type": "application/json"
           },
           "notes": "Deletes collection by ID."
+        },
+        {
+          "name": "Add Record to Collection",
+          "method": "POST",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/collections/65f08c5e1a2b3c4d5e6f7890/records",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "body": {
+            "recordId": "65f08c5e1a2b3c4d5e6f7891"
+          },
+          "notes": "Adds an existing record to a collection. Requires authentication."
+        },
+        {
+          "name": "Remove Record from Collection",
+          "method": "DELETE",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/collections/65f08c5e1a2b3c4d5e6f7890/records/65f08c5e1a2b3c4d5e6f7891",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "notes": "Removes a record from a collection. Requires authentication."
         }
       ]
     },
@@ -227,7 +250,7 @@
         {
           "name": "Upload Single Media",
           "method": "POST",
-          "url": "http://localhost:3000/media/upload",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/media/upload",
           "headers": {
             "Content-Type": "multipart/form-data",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -243,7 +266,7 @@
         {
           "name": "Upload Multiple Media",
           "method": "POST",
-          "url": "http://localhost:3000/media/upload-multiple",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/media/upload-multiple",
           "headers": {
             "Content-Type": "multipart/form-data",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
@@ -259,7 +282,7 @@
         {
           "name": "Get Media By ID",
           "method": "GET",
-          "url": "http://localhost:3000/media/65f08c5e1a2b3c4d5e6f7890",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/media/65f08c5e1a2b3c4d5e6f7890",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -268,7 +291,7 @@
         {
           "name": "Get Media By Collection",
           "method": "GET",
-          "url": "http://localhost:3000/media/collection/65f08c5e1a2b3c4d5e6f7890",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/media/collection/65f08c5e1a2b3c4d5e6f7890",
           "headers": {
             "Content-Type": "application/json"
           },
@@ -277,12 +300,45 @@
         {
           "name": "Delete Media",
           "method": "DELETE",
-          "url": "http://localhost:3000/media/65f08c5e1a2b3c4d5e6f7890",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/media/65f08c5e1a2b3c4d5e6f7890",
           "headers": {
             "Content-Type": "application/json",
             "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
           },
           "notes": "Requires authentication. Replace the ID in the URL with a valid media ID."
+        }
+      ]
+    },
+    {
+      "section": "Records API Endpoints",
+      "endpoints": [
+        {
+          "name": "Get All Records",
+          "method": "GET",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/records",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "Gets all records with populated user and collection information."
+        },
+        {
+          "name": "Get Record by ID",
+          "method": "GET",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/records/65f08c5e1a2b3c4d5e6f7891",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "notes": "Gets record by ID with populated user and collection information."
+        },
+        {
+          "name": "Delete Record",
+          "method": "DELETE",
+          "url": "https://stiff-keslie-a7medbibars-f69765cc.koyeb.app/records/65f08c5e1a2b3c4d5e6f7891",
+          "headers": {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+          },
+          "notes": "Deletes a record. Requires authentication. Only the user who created the record can delete it."
         }
       ]
     }

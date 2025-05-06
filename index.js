@@ -105,6 +105,7 @@ app.use('/uploads', express.static('uploads'));
 app.use("/user", allRouters.userRouter);
 app.use("/collections", allRouters.collectionRouter);
 app.use("/media", allRouters.mediaRouter);
+app.use("/records", allRouters.recordsRouter);
 
 // Google OAuth routes
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

@@ -4,12 +4,14 @@ import {
   getAllCollections, 
   getCollection, 
   updateCollection, 
-  deleteCollection 
+  deleteCollection,
+  addRecordToCollection,
+  removeRecordFromCollection
 } from "./collections.controller.js";
 import { asyncHandler } from "../../middleware/asyncHandler.js";
 import { isAuthenticated } from "../../middleware/authentication.js";
 import { isValid } from "../../middleware/validation.js";
-import { createCollectionVal, updateCollectionVal } from "./collections.validation.js";
+import { createCollectionVal, updateCollectionVal, addRecordToCollectionVal } from "./collections.validation.js";
 
 const collectionRouter = Router();
 
@@ -44,6 +46,21 @@ collectionRouter.put(
 collectionRouter.delete(
   "/:collectionId",
   asyncHandler(deleteCollection)
+);
+
+// add record to collection
+collectionRouter.post(
+  "/:collectionId/records",
+  isAuthenticated(),
+  isValid(addRecordToCollectionVal),
+  asyncHandler(addRecordToCollection)
+);
+
+// remove record from collection
+collectionRouter.delete(
+  "/:collectionId/records/:recordId",
+  isAuthenticated(),
+  asyncHandler(removeRecordFromCollection)
 );
 
 export default collectionRouter;
