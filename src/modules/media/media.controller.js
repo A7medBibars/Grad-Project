@@ -1,7 +1,11 @@
 import { Media } from "../../../db/index.js";
+import { Record } from "../../../db/index.js";
 import { AppError } from "../../utils/appError.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../../utils/cloudinary.js";
 import { messages } from "../../utils/constants/messages.js";
+import fetch from "node-fetch";
+import FormData from "form-data";
+import fs from "fs";
 
 // Upload a single file
 export const uploadMedia = async (req, res, next) => {
@@ -19,7 +23,7 @@ export const uploadMedia = async (req, res, next) => {
     return next(new AppError(messages.media.uploadFailed, 500));
   }
 
-  // prepare data
+  // prepare media data
   const media = new Media({
     title,
     description,
@@ -32,12 +36,72 @@ export const uploadMedia = async (req, res, next) => {
     uploadedBy: req.authUser._id
   });
 
-  // save data
+  // save media data
   const savedMedia = await media.save();
   if (!savedMedia) {
     // Rollback cloudinary upload
     await deleteFromCloudinary(cloudinaryResult.public_id, cloudinaryResult.resource_type);
     return next(new AppError(messages.media.failToSave, 500));
+  }
+
+  // Process with AI model if it's an image or video
+  let aiResult = null;
+  if (cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') {
+    // Create form data for AI API request
+    const formData = new FormData();
+    formData.append('file', fs.createReadStream(file.path));
+
+    // Determine which endpoint to use based on file type
+    const endpoint = cloudinaryResult.resource_type === 'image' 
+      ? 'http://localhost:5000/predict/image' 
+      : 'http://localhost:5000/predict/video';
+
+    // Call AI API
+    let aiResponse;
+    try {
+      aiResponse = await fetch(endpoint, {
+        method: 'POST',
+        body: formData
+      });
+    } catch (error) {
+      console.error('AI API connection error:', error.message);
+      // Continue without AI analysis if the API request fails
+    }
+
+    if (aiResponse && !aiResponse.ok) {
+      console.error('AI analysis failed:', await aiResponse.text());
+    } else if (aiResponse) {
+      try {
+        aiResult = await aiResponse.json();
+        
+        // Create record if AI analysis was successful
+        if (aiResult) {
+          let recordData = {
+            userId: req.authUser._id,
+            collectionId: collectionId || null,
+            mediaUrl: cloudinaryResult.url
+          };
+
+          // Handle different response formats from image vs video endpoints
+          if (cloudinaryResult.resource_type === 'image') {
+            recordData.emotion = [aiResult.emotion];
+            recordData.times = [0]; // Single timestamp for image
+          } else {
+            // For video: extract emotions and timestamps from array
+            recordData.emotion = aiResult.map(item => item.emotion);
+            recordData.times = aiResult.map(item => item.timestamp);
+          }
+
+          // Save record
+          const record = new Record(recordData);
+          await record.save();
+          // No need to handle record save failure as it shouldn't affect media upload
+        }
+      } catch (parseError) {
+        console.error('Error parsing AI response:', parseError.message);
+        // Continue without AI analysis if parsing fails
+      }
+    }
   }
 
   // populate the user who uploaded the media
@@ -50,7 +114,8 @@ export const uploadMedia = async (req, res, next) => {
   res.status(201).json({
     success: true,
     message: messages.media.uploadSuccess,
-    data: populatedMedia
+    data: populatedMedia,
+    aiAnalysis: aiResult
   });
 };
 
@@ -65,9 +130,11 @@ export const uploadMultipleMedia = async (req, res, next) => {
 
   // Keep track of uploaded files for rollback
   const uploadedFiles = [];
+  const savedMediaIds = [];
+  const aiResults = [];
   
   // process each file
-  const uploadPromises = files.map(async (file) => {
+  const uploadPromises = files.map(async (file, index) => {
     // upload to cloudinary
     const folder = 'media_uploads';
     const cloudinaryResult = await uploadToCloudinary(file, folder);
@@ -83,8 +150,8 @@ export const uploadMultipleMedia = async (req, res, next) => {
 
     // prepare data
     const media = new Media({
-      title,
-      description,
+      title: Array.isArray(title) ? title[index] || `Uploaded file ${index + 1}` : title || `Uploaded file ${index + 1}`,
+      description: Array.isArray(description) ? description[index] || '' : description || '',
       fileUrl: cloudinaryResult.url,
       publicId: cloudinaryResult.public_id,
       fileType: cloudinaryResult.resource_type,
@@ -100,6 +167,64 @@ export const uploadMultipleMedia = async (req, res, next) => {
       throw new AppError(messages.media.failToSave, 500);
     }
 
+    savedMediaIds.push(savedMedia._id);
+
+    // Process with AI model if it's an image or video
+    let aiResult = null;
+    if (cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') {
+      // Create form data for AI API request
+      const formData = new FormData();
+      formData.append('file', fs.createReadStream(file.path));
+
+      // Determine which endpoint to use based on file type
+      const endpoint = cloudinaryResult.resource_type === 'image' 
+        ? 'http://localhost:5000/predict/image' 
+        : 'http://localhost:5000/predict/video';
+
+      // Call AI API
+      let aiResponse;
+      try {
+        aiResponse = await fetch(endpoint, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!aiResponse.ok) {
+          console.error('AI analysis failed:', await aiResponse.text());
+        } else {
+          aiResult = await aiResponse.json();
+          aiResults.push({ mediaId: savedMedia._id, analysis: aiResult });
+          
+          // Create record if AI analysis was successful
+          if (aiResult) {
+            let recordData = {
+              userId: req.authUser._id,
+              collectionId: collectionId || null,
+              mediaUrl: cloudinaryResult.url
+            };
+
+            // Handle different response formats from image vs video endpoints
+            if (cloudinaryResult.resource_type === 'image') {
+              recordData.emotion = [aiResult.emotion];
+              recordData.times = [0]; // Single timestamp for image
+            } else {
+              // For video: extract emotions and timestamps from array
+              recordData.emotion = aiResult.map(item => item.emotion);
+              recordData.times = aiResult.map(item => item.timestamp);
+            }
+
+            // Save record
+            const record = new Record(recordData);
+            await record.save();
+            // No need to handle record save failure as it shouldn't affect media upload
+          }
+        }
+      } catch (error) {
+        console.error('AI processing error:', error.message);
+        // Continue with other files even if AI processing fails for one
+      }
+    }
+
     return savedMedia._id;
   }).map(p => p.catch(e => e)); // Handle individual promise rejections
 
@@ -113,6 +238,12 @@ export const uploadMultipleMedia = async (req, res, next) => {
     for (const file of uploadedFiles) {
       await deleteFromCloudinary(file.public_id, file.resource_type);
     }
+    
+    // Delete saved media from database
+    for (const mediaId of savedMediaIds) {
+      await Media.findByIdAndDelete(mediaId);
+    }
+    
     return next(new AppError(errors[0].message || messages.media.uploadFailed, 500));
   }
 
@@ -128,7 +259,8 @@ export const uploadMultipleMedia = async (req, res, next) => {
   res.status(201).json({
     success: true,
     message: messages.media.multipleUploadSuccess,
-    data: populatedMedia
+    data: populatedMedia,
+    aiAnalysis: aiResults
   });
 };
 
@@ -140,7 +272,7 @@ export const getMedia = async (req, res, next) => {
   // find media
   const media = await Media.findById(mediaId).populate(
     "uploadedBy",
-    "firstName lastName"
+    "name"
   );
   
   // check if media exists
@@ -174,7 +306,7 @@ export const deleteMedia = async (req, res, next) => {
   // populate media before deleting
   const populatedMedia = await Media.findById(mediaId).populate(
     "uploadedBy",
-    "firstName lastName"
+    "name"
   );
   
   // delete from cloudinary
@@ -205,7 +337,7 @@ export const getMediaByCollection = async (req, res, next) => {
   // find all media in collection
   const media = await Media.find({ collectionId }).populate(
     "uploadedBy",
-    "firstName lastName"
+    "name"
   );
   
   // send response
