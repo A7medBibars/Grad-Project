@@ -844,4 +844,130 @@ mediaRouter.delete(
 - API documentation
 - Deployment guides
 - Contribution guidelines
-- Troubleshooting guides 
+- Troubleshooting guides
+
+## 7. Integration Systems
+
+### 7.1 Media Upload and AI Analysis Integration
+
+#### 7.1.1 System Overview
+The application implements an integrated workflow between media uploads and AI analysis to provide emotion detection capabilities. This integration automatically processes uploaded media (images and videos) through an AI model and stores the results as records.
+
+#### 7.1.2 Architecture Components
+1. **Media Upload Service**
+   - Handles file uploads to Cloudinary storage
+   - Validates media formats and sizes
+   - Stores media metadata in the database
+
+2. **AI Analysis Service**
+   - Processes media through a TensorFlow model
+   - Detects emotions in images and videos
+   - Returns analysis results with emotion labels
+
+3. **Records Management System**
+   - Stores AI analysis results linked to media
+   - Maintains timestamps for video emotion changes
+   - Associates records with users and collections
+
+#### 7.1.3 Integration Workflow
+```javascript
+// High-level workflow diagram
+Media Upload → Cloudinary Storage → AI Analysis → Record Creation
+```
+
+#### 7.1.4 Implementation Analysis
+The integration is implemented in the `media.controller.js` file, where the `uploadMedia` and `uploadMultipleMedia` functions have been enhanced to:
+
+1. Upload media to Cloudinary
+2. Process the media through the AI model API
+3. Create records with the analysis results
+4. Return the complete information to the user
+
+**Single Media Upload Process**:
+```javascript
+// Process with AI model if it's an image or video
+if (cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') {
+  // Call AI API
+  const aiResponse = await fetch(endpoint, { ... });
+  
+  // Create record if AI analysis was successful
+  if (aiResult) {
+    let recordData = {
+      userId: req.authUser._id,
+      collectionId: collectionId || null,
+      mediaUrl: cloudinaryResult.url
+    };
+
+    // Handle different response formats from image vs video endpoints
+    if (cloudinaryResult.resource_type === 'image') {
+      recordData.emotion = [aiResult.emotion];
+      recordData.times = [0];
+    } else {
+      recordData.emotion = aiResult.map(item => item.emotion);
+      recordData.times = aiResult.map(item => item.timestamp);
+    }
+
+    // Save record
+    const record = new Record(recordData);
+    await record.save();
+  }
+}
+```
+
+#### 7.1.5 Error Handling Strategy
+The integration implements robust error handling:
+
+1. **API Connection Failures**
+   - Gracefully handles AI API connectivity issues
+   - Continues with media upload even if AI analysis fails
+   - Logs error details for troubleshooting
+
+2. **Response Parsing Errors**
+   - Validates AI response format
+   - Handles malformed responses
+   - Prevents system crashes from unexpected data
+
+3. **Record Creation Failures**
+   - Separates media storage from record creation
+   - Ensures media is saved regardless of record creation status
+   - Preserves user uploads despite downstream errors
+
+#### 7.1.6 Data Flow Analysis
+1. **Media Processing**
+   - Images: Processed through `/predict/image` endpoint
+   - Videos: Processed through `/predict/video` endpoint
+   - Response formats differ between endpoints
+
+2. **Data Transformation**
+   - Image results: Single emotion, mapped to array with single timestamp (0)
+   - Video results: Array of emotions with corresponding timestamps
+   - Standardized format stored in Records collection
+
+3. **Response Enhancement**
+   - Original upload response enhanced with AI analysis results
+   - Client receives combined data in single response
+   - Improves UX by eliminating need for separate API calls
+
+#### 7.1.7 Security Considerations
+1. **File Access Control**
+   - Temporary file access restricted to processing duration
+   - Secure file handling with stream processing
+   - Proper cleanup of temporary files
+
+2. **API Authentication**
+   - Local API calls without exposed authentication
+   - Server-side processing prevents client-side manipulation
+   - Isolation of AI system from direct external access
+
+#### 7.1.8 Scalability Analysis
+The integration is designed with scalability in mind:
+
+1. **Asynchronous Processing**
+   - Non-blocking API calls
+   - Parallel processing for multiple files
+   - Efficient resource utilization
+
+2. **Error Isolation**
+   - Individual file processing errors don't affect other files
+   - Graceful degradation when AI system is unavailable
+   - Detailed logging for monitoring and optimization 

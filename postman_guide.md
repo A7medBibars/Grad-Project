@@ -221,44 +221,119 @@ The typical authentication flow is:
 - **Headers**:
   - `token`: YOUR_JWT_TOKEN_HERE
 - **Body** (form-data):
-  - `file`: Select a file to upload
+  - `file`: [Select a file]
   - `title`: "My Media Title"
-  - `description`: "This is a description of my media upload"
-  - `collectionId`: "65f08c5e1a2b3c4d5e6f7890" (Replace with a valid collection ID)
-- **Notes**: Use form-data content type in Postman.
+  - `description`: "Optional description"
+  - `collectionId`: "65f08c5e1a2b3c4d5e6f7890" (Optional)
+- **Notes**: 
+  - Supports image and video uploads
+  - AI emotion analysis is automatically performed for images and videos
+  - Response includes both media information and AI analysis results
+  - A record is automatically created with the analysis results
 
 ### 2. Upload Multiple Media
 - **Method**: POST
-- **URL**: `https://your-vercel-app.vercel.app/media/upload-multiple`
+- **URL**: `https://your-vercel-app.vercel.app/media/upload/multiple`
 - **Auth Required**: Yes
 - **Headers**:
   - `token`: YOUR_JWT_TOKEN_HERE
 - **Body** (form-data):
-  - `files`: Select multiple files to upload
-  - `title`: "Multiple Media Upload"
-  - `description`: "This is a batch upload of multiple files"
-  - `collectionId`: "65f08c5e1a2b3c4d5e6f7890" (Replace with a valid collection ID)
-- **Notes**: Use form-data content type in Postman.
+  - `files`: [Select multiple files]
+  - `title`: "Common Title" (Optional, can be different per file)
+  - `description`: "Optional description" (Optional)
+  - `collectionId`: "65f08c5e1a2b3c4d5e6f7890" (Optional)
+- **Notes**: 
+  - Supports multiple image and video uploads
+  - AI emotion analysis is performed for each file
+  - Response includes media information and AI analysis results for each file
+  - Records are automatically created with analysis results for each file
 
-### 3. Get Media By ID
+### 3. Get Media by ID
 - **Method**: GET
 - **URL**: `https://your-vercel-app.vercel.app/media/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: No
 - **Notes**: Replace the ID in the URL with a valid media ID.
 
-### 4. Get Media By Collection
-- **Method**: GET
-- **URL**: `https://your-vercel-app.vercel.app/media/collection/65f08c5e1a2b3c4d5e6f7890`
-- **Auth Required**: No
-- **Notes**: Replace the ID in the URL with a valid collection ID.
-
-### 5. Delete Media
+### 4. Delete Media
 - **Method**: DELETE
 - **URL**: `https://your-vercel-app.vercel.app/media/65f08c5e1a2b3c4d5e6f7890`
 - **Auth Required**: Yes
 - **Headers**:
   - `token`: YOUR_JWT_TOKEN_HERE
-- **Notes**: Replace the ID in the URL with a valid media ID.
+- **Notes**: Replace the ID in the URL with a valid media ID. Only the uploader can delete the media.
+
+### 5. Get All Media for a Collection
+- **Method**: GET
+- **URL**: `https://your-vercel-app.vercel.app/media/collection/65f08c5e1a2b3c4d5e6f7890`
+- **Auth Required**: No
+- **Notes**: Replace the ID in the URL with a valid collection ID.
+
+## AI Analysis Integration
+
+The media upload endpoints now automatically process uploaded files through an AI model for emotion detection:
+
+### Response Format for Single Image Upload
+```json
+{
+  "success": true,
+  "message": "Media uploaded successfully",
+  "data": {
+    "_id": "65f08c5e1a2b3c4d5e6f7890",
+    "title": "My Image",
+    "description": "A test image",
+    "fileUrl": "https://res.cloudinary.com/example/image/upload/v1234567890/media_uploads/image.jpg",
+    "fileType": "image",
+    "format": "jpg",
+    "uploadedBy": {
+      "_id": "65f08c5e1a2b3c4d5e6f7891",
+      "firstName": "John",
+      "lastName": "Doe"
+    },
+    "createdAt": "2023-06-15T10:30:00.000Z",
+    "updatedAt": "2023-06-15T10:30:00.000Z"
+  },
+  "aiAnalysis": {
+    "emotion": "happy"
+  }
+}
+```
+
+### Response Format for Video Upload
+```json
+{
+  "success": true,
+  "message": "Media uploaded successfully",
+  "data": {
+    "_id": "65f08c5e1a2b3c4d5e6f7892",
+    "title": "My Video",
+    "description": "A test video",
+    "fileUrl": "https://res.cloudinary.com/example/video/upload/v1234567890/media_uploads/video.mp4",
+    "fileType": "video",
+    "format": "mp4",
+    "uploadedBy": {
+      "_id": "65f08c5e1a2b3c4d5e6f7891",
+      "firstName": "John",
+      "lastName": "Doe"
+    },
+    "createdAt": "2023-06-15T10:30:00.000Z",
+    "updatedAt": "2023-06-15T10:30:00.000Z"
+  },
+  "aiAnalysis": [
+    {
+      "timestamp": 0.5,
+      "emotion": "neutral"
+    },
+    {
+      "timestamp": 2.3,
+      "emotion": "happy"
+    },
+    {
+      "timestamp": 5.7,
+      "emotion": "surprise"
+    }
+  ]
+}
+```
 
 ## General Testing Tips
 
