@@ -14,6 +14,19 @@ export const uploadMedia = async (req, res, next) => {
   if (!file) {
     return next(new AppError(messages.media.fileRequired, 400));
   }
+  
+  // Log file object structure for debugging
+  console.log('File object structure:', JSON.stringify({
+    fieldname: file.fieldname,
+    originalname: file.originalname,
+    encoding: file.encoding,
+    mimetype: file.mimetype,
+    size: file.size,
+    path: file.path,
+    buffer: file.buffer ? 'Buffer exists' : 'No buffer',
+    destination: file.destination
+  }, null, 2));
+  
   const { title, description, collectionId } = req.body;
 
   // upload to cloudinary
@@ -47,60 +60,83 @@ export const uploadMedia = async (req, res, next) => {
   // Process with AI model if it's an image or video
   let aiResult = null;
   if (cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') {
-    // Create form data for AI API request
-    const formData = new FormData();
-    formData.append('file', fs.createReadStream(file.path));
-
-    // Determine which endpoint to use based on file type
-    const endpoint = cloudinaryResult.resource_type === 'image' 
-      ? 'http://localhost:5000/predict/image' 
-      : 'http://localhost:5000/predict/video';
-
-    // Call AI API
-    let aiResponse;
     try {
-      aiResponse = await fetch(endpoint, {
-        method: 'POST',
-        body: formData
-      });
-    } catch (error) {
-      console.error('AI API connection error:', error.message);
-      // Continue without AI analysis if the API request fails
-    }
-
-    if (aiResponse && !aiResponse.ok) {
-      console.error('AI analysis failed:', await aiResponse.text());
-    } else if (aiResponse) {
-      try {
-        aiResult = await aiResponse.json();
-        
-        // Create record if AI analysis was successful
-        if (aiResult) {
-          let recordData = {
-            userId: req.authUser._id,
-            collectionId: collectionId || null,
-            mediaUrl: cloudinaryResult.url
-          };
-
-          // Handle different response formats from image vs video endpoints
-          if (cloudinaryResult.resource_type === 'image') {
-            recordData.emotion = [aiResult.emotion];
-            recordData.times = [0]; // Single timestamp for image
-          } else {
-            // For video: extract emotions and timestamps from array
-            recordData.emotion = aiResult.map(item => item.emotion);
-            recordData.times = aiResult.map(item => item.timestamp);
-          }
-
-          // Save record
-          const record = new Record(recordData);
-          await record.save();
-          // No need to handle record save failure as it shouldn't affect media upload
-        }
-      } catch (parseError) {
-        console.error('Error parsing AI response:', parseError.message);
-        // Continue without AI analysis if parsing fails
+      // Create form data for AI API request
+      const formData = new FormData();
+      
+      // Check if file.path exists - this is causing the error
+      if (!file.path && file.buffer) {
+        // Using memory storage (file.buffer exists but not file.path)
+        // Create a temporary file or use the buffer directly
+        formData.append('file', file.buffer, {
+          filename: file.originalname,
+          contentType: file.mimetype
+        });
+      } else if (file.path) {
+        // Using disk storage (file.path exists)
+        formData.append('file', fs.createReadStream(file.path));
+      } else {
+        console.error('Neither file.path nor file.buffer exists');
+        // Skip AI processing but continue with the upload
       }
+
+      // Only proceed with AI processing if we successfully added the file to formData
+      if (formData.getBoundary()) {
+        // Determine which endpoint to use based on file type
+        const endpoint = cloudinaryResult.resource_type === 'image' 
+          ? 'http://localhost:5000/predict/image' 
+          : 'http://localhost:5000/predict/video';
+
+        // Call AI API
+        let aiResponse;
+        try {
+          aiResponse = await fetch(endpoint, {
+            method: 'POST',
+            body: formData
+          });
+        } catch (error) {
+          console.error('AI API connection error:', error.message);
+          // Continue without AI analysis if the API request fails
+        }
+
+        if (aiResponse && !aiResponse.ok) {
+          console.error('AI analysis failed:', await aiResponse.text());
+        } else if (aiResponse) {
+          try {
+            aiResult = await aiResponse.json();
+            
+            // Create record if AI analysis was successful
+            if (aiResult) {
+              let recordData = {
+                userId: req.authUser._id,
+                collectionId: collectionId || null,
+                mediaUrl: cloudinaryResult.url
+              };
+
+              // Handle different response formats from image vs video endpoints
+              if (cloudinaryResult.resource_type === 'image') {
+                recordData.emotion = [aiResult.emotion];
+                recordData.times = [0]; // Single timestamp for image
+              } else {
+                // For video: extract emotions and timestamps from array
+                recordData.emotion = aiResult.map(item => item.emotion);
+                recordData.times = aiResult.map(item => item.timestamp);
+              }
+
+              // Save record
+              const record = new Record(recordData);
+              await record.save();
+              // No need to handle record save failure as it shouldn't affect media upload
+            }
+          } catch (parseError) {
+            console.error('Error parsing AI response:', parseError.message);
+            // Continue without AI analysis if parsing fails
+          }
+        }
+      }
+    } catch (aiError) {
+      console.error('Error in AI processing:', aiError);
+      // Continue without AI analysis
     }
   }
 
