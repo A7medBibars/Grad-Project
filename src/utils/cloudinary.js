@@ -40,17 +40,23 @@ export const uploadToCloudinary = async (file, folder) => {
     }
     
     // If file is a path (from disk storage)
-    const result = await cloudinary.uploader.upload(file, {
-      folder,
-      resource_type: 'auto' // Automatically detect if it's an image or video
-    });
+    if (file.path) {
+      const result = await cloudinary.uploader.upload(file.path, {
+        folder,
+        resource_type: 'auto' // Automatically detect if it's an image or video
+      });
+      
+      return {
+        public_id: result.public_id,
+        url: result.secure_url,
+        format: result.format,
+        resource_type: result.resource_type
+      };
+    }
     
-    return {
-      public_id: result.public_id,
-      url: result.secure_url,
-      format: result.format,
-      resource_type: result.resource_type
-    };
+    // If neither buffer nor path is available
+    console.error('File has neither buffer nor path:', file.originalname);
+    throw new Error('File has neither buffer nor path');
   } catch (error) {
     console.error(`Error uploading to Cloudinary: ${error.message}`);
     return null;
