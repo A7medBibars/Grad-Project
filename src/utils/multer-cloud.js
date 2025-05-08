@@ -1,7 +1,7 @@
 import multer, { diskStorage } from "multer";
 import { AppError } from "./appError.js";
 
-const fileValidation = { file: ["application/pdf"] };
+const fileValidation = { file: ["image/jpeg", "image/png", "image/jpg", "image/gif", "image/webp" ,"video/mp4"] };
 
 /**
  * @description
