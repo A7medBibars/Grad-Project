@@ -233,4 +233,14 @@ export const handleAIMediaProcessing = async (mediaFile, uploadInfo, options = {
       }
     };
   }
-}; 
+};
+
+// Add this IIFE to properly handle the async function
+(async () => {
+  try {
+    const isAvailable = await checkAIServerAvailability();
+    console.log('AI Server Available:', isAvailable);
+  } catch (error) {
+    console.error('Error checking AI availability:', error.message);
+  }
+})(); 

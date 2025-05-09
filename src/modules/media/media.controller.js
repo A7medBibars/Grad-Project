@@ -59,12 +59,16 @@ export const uploadMedia = async (req, res, next) => {
   let aiResult = null;
   if (cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') {
     // Check if AI server is available
+    console.log('Checking AI server availability...');
     const isAIServerAvailable = await checkAIServerAvailability();
+    console.log('AI Server Available:', isAIServerAvailable);
     
     if (isAIServerAvailable) {
       try {
         // Process media with AI
+        console.log('Processing media with AI...');
         const enhancedMediaData = await handleAIMediaProcessing(file, mediaData);
+        console.log('AI processing result:', enhancedMediaData.aiProcessed, enhancedMediaData.metadata.aiStatus);
         
         // Update media data with AI results
         mediaData.metadata = enhancedMediaData.metadata || {};
