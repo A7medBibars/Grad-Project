@@ -15,212 +15,43 @@ const { unlink: unlinkAsync } = fsPromises;
 
 // Upload a single file
 export const uploadMedia = async (req, res, next) => {
-  // get data
-  const file = req.file;
-  if (!file) {
-    return next(new AppError(messages.media.fileRequired, 400));
-  }
-  
-  // Log file object structure for debugging
-  console.log('File object structure:', JSON.stringify({
-    fieldname: file.fieldname,
-    originalname: file.originalname,
-    encoding: file.encoding,
-    mimetype: file.mimetype,
-    size: file.size,
-    path: file.path,
-    buffer: file.buffer ? 'Buffer exists' : 'No buffer',
-    destination: file.destination
-  }, null, 2));
-  
-  const { title, description, collectionId } = req.body;
-
-  // upload to cloudinary
-  const folder = 'media_uploads';
-  const cloudinaryResult = await uploadToCloudinary(file, folder);
-  if (!cloudinaryResult) {
-    return next(new AppError(messages.media.uploadFailed, 500));
-  }
-
-  // prepare media data
-  const mediaData = {
-    title,
-    description,
-    fileUrl: cloudinaryResult.url,
-    publicId: cloudinaryResult.public_id,
-    fileType: cloudinaryResult.resource_type,
-    format: cloudinaryResult.format,
-    size: file.size,
-    collectionId: collectionId || null,
-    uploadedBy: req.authUser._id,
-    metadata: {} // Initialize metadata field
-  };
-
-  // Process with AI model if it's an image or video
-  let aiResult = null;
-  if (cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') {
-    // Check if AI server is available
-    console.log('Checking AI server availability...');
-    const isAIServerAvailable = await checkAIServerAvailability();
-    console.log('AI Server Available:', isAIServerAvailable);
-    
-    if (isAIServerAvailable) {
-      try {
-        // Process media with AI
-        console.log('Processing media with AI...', {
-          fileType: cloudinaryResult.resource_type,
-          hasPath: !!file.path,
-          hasBuffer: !!file.buffer,
-          fileSize: file.size
-        });
-        
-        // Pass skipAI: false to force AI processing
-        const options = { skipAI: false };
-        const enhancedMediaData = await handleAIMediaProcessing(file, mediaData, options);
-        
-        console.log('AI processing result:', {
-          processed: enhancedMediaData.aiProcessed,
-          status: enhancedMediaData.metadata?.aiStatus,
-          error: enhancedMediaData.metadata?.aiError,
-          emotion: enhancedMediaData.metadata?.emotion
-        });
-        
-        // Update media data with AI results
-        mediaData.metadata = enhancedMediaData.metadata || {};
-        aiResult = enhancedMediaData.aiResults;
-      } catch (error) {
-        console.error('AI processing error:', error.message);
-        // Continue without AI analysis if processing fails
-      }
-    } else {
-      console.log('AI server is not available. Continuing without AI processing.');
-    }
-  }
-
-  // Create a record for this media regardless of AI processing
-  let recordData = {
-    userId: req.authUser._id,
-    mediaUrl: cloudinaryResult.url
-  };
-
-  // Only include collectionId if it's specified
-  if (collectionId) {
-    recordData.collectionId = collectionId;
-  }
-
-  // If AI processing was successful, add emotion data
-  if (aiResult) {
-    // For image
-    if (cloudinaryResult.resource_type === 'image') {
-      recordData.emotion = [mediaData.metadata.emotion || 'unknown'];
-      recordData.times = [0]; // Single timestamp for image
-      
-      // For image, just include the main emotion in the response
-      mediaData.metadata.aiAnalysis = {
-        emotion: mediaData.metadata.emotion || 'unknown'
-      };
-    } 
-    // For video
-    else {
-      // Extract emotions and timestamps from array
-      recordData.emotion = Array.isArray(aiResult) 
-        ? aiResult.map(item => item.emotion) 
-        : ['unknown'];
-      recordData.times = Array.isArray(aiResult)
-        ? aiResult.map(item => item.timestamp)
-        : [0];
-      
-      // For video, include detailed timeline in the response
-      mediaData.metadata.aiAnalysis = {
-        emotion: mediaData.metadata.emotion || 'unknown',
-        timeline: Array.isArray(aiResult) ? aiResult : []
-      };
-    }
-  } 
-  // If no AI processing, add default values
-  else {
-    recordData.emotion = ['unknown'];
-    recordData.times = [0];
-    mediaData.metadata.aiAnalysis = {
-      emotion: 'unknown'
-    };
-  }
-
-  // Save the record
-  const record = new Record(recordData);
-  const savedRecord = await record.save();
-
-  // Keep record ID reference in metadata
-  mediaData.metadata.recordId = savedRecord._id;
-
-  // Create and save media document
-  const media = new Media(mediaData);
-  const savedMedia = await media.save();
-  if (!savedMedia) {
-    // Rollback cloudinary upload and record
-    await deleteFromCloudinary(cloudinaryResult.public_id, cloudinaryResult.resource_type);
-    
-    // Delete the record we just created if save failed
-    if (mediaData.metadata && mediaData.metadata.recordId) {
-      await Record.findByIdAndDelete(mediaData.metadata.recordId);
-    }
-    
-    return next(new AppError(messages.media.failToSave, 500));
-  }
-
-  savedMediaIds.push(savedMedia._id);
-
-  // Populate uploaded info
-  const populatedMedia = await Media.findById(savedMedia._id).populate(
-    "uploadedBy",
-    "name"
-  );
-
-  // send response
-  res.status(201).json({
-    success: true,
-    message: messages.media.uploadSuccess,
-    data: populatedMedia,
-    aiProcessed: !!aiResult
-  });
-};
-
-// Upload multiple files
-export const uploadMultipleMedia = async (req, res, next) => {
-  // get data
-  const files = req.files;
-  if (!files || files.length === 0) {
-    return next(new AppError(messages.media.filesRequired, 400));
-  }
-  const { title, description, collectionId } = req.body;
-
-  // Check if AI server is available once for all files
-  const isAIServerAvailable = await checkAIServerAvailability();
-
-  // Keep track of uploaded files for rollback
-  const uploadedFiles = [];
+  // Create an array to store saved media IDs (for error handling)
   const savedMediaIds = [];
-  const aiResults = [];
+  let cloudinaryResult = null;
+  let mediaData = {};
   
-  // process each file
-  const uploadPromises = files.map(async (file, index) => {
+  try {
+    // get data
+    const file = req.file;
+    if (!file) {
+      return next(new AppError(messages.media.fileRequired, 400));
+    }
+    
+    // Log file object structure for debugging
+    console.log('File object structure:', JSON.stringify({
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      encoding: file.encoding,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path,
+      buffer: file.buffer ? 'Buffer exists' : 'No buffer',
+      destination: file.destination
+    }, null, 2));
+    
+    const { title, description, collectionId } = req.body;
+
     // upload to cloudinary
     const folder = 'media_uploads';
-    const cloudinaryResult = await uploadToCloudinary(file, folder);
+    cloudinaryResult = await uploadToCloudinary(file, folder);
     if (!cloudinaryResult) {
-      throw new AppError(messages.media.uploadFailed, 500);
+      return next(new AppError(messages.media.uploadFailed, 500));
     }
 
-    // Track uploaded file for potential rollback
-    uploadedFiles.push({
-      public_id: cloudinaryResult.public_id,
-      resource_type: cloudinaryResult.resource_type
-    });
-
     // prepare media data
-    const mediaData = {
-      title: Array.isArray(title) ? title[index] || `Uploaded file ${index + 1}` : title || `Uploaded file ${index + 1}`,
-      description: Array.isArray(description) ? description[index] || '' : description || '',
+    mediaData = {
+      title,
+      description,
       fileUrl: cloudinaryResult.url,
       publicId: cloudinaryResult.public_id,
       fileType: cloudinaryResult.resource_type,
@@ -231,35 +62,44 @@ export const uploadMultipleMedia = async (req, res, next) => {
       metadata: {} // Initialize metadata field
     };
 
-    // Process with AI model if it's an image or video and AI server is available
+    // Process with AI model if it's an image or video
     let aiResult = null;
-    if ((cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') && isAIServerAvailable) {
-      try {
-        // Process media with AI
-        console.log('Processing media with AI...', {
-          fileType: cloudinaryResult.resource_type,
-          hasPath: !!file.path,
-          hasBuffer: !!file.buffer,
-          fileSize: file.size
-        });
-        
-        // Pass skipAI: false to force AI processing
-        const options = { skipAI: false };
-        const enhancedMediaData = await handleAIMediaProcessing(file, mediaData, options);
-        
-        console.log('AI processing result:', {
-          processed: enhancedMediaData.aiProcessed,
-          status: enhancedMediaData.metadata?.aiStatus,
-          error: enhancedMediaData.metadata?.aiError,
-          emotion: enhancedMediaData.metadata?.emotion
-        });
-        
-        // Update media data with AI results
-        mediaData.metadata = enhancedMediaData.metadata || {};
-        aiResult = enhancedMediaData.aiResults;
-      } catch (error) {
-        console.error(`AI processing error for file ${index}:`, error.message);
-        // Continue without AI analysis if processing fails
+    if (cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') {
+      // Check if AI server is available
+      console.log('Checking AI server availability...');
+      const isAIServerAvailable = await checkAIServerAvailability();
+      console.log('AI Server Available:', isAIServerAvailable);
+      
+      if (isAIServerAvailable) {
+        try {
+          // Process media with AI
+          console.log('Processing media with AI...', {
+            fileType: cloudinaryResult.resource_type,
+            hasPath: !!file.path,
+            hasBuffer: !!file.buffer,
+            fileSize: file.size
+          });
+          
+          // Pass skipAI: false to force AI processing
+          const options = { skipAI: false };
+          const enhancedMediaData = await handleAIMediaProcessing(file, mediaData, options);
+          
+          console.log('AI processing result:', {
+            processed: enhancedMediaData.aiProcessed,
+            status: enhancedMediaData.metadata?.aiStatus,
+            error: enhancedMediaData.metadata?.aiError,
+            emotion: enhancedMediaData.metadata?.emotion
+          });
+          
+          // Update media data with AI results
+          mediaData.metadata = enhancedMediaData.metadata || {};
+          aiResult = enhancedMediaData.aiResults;
+        } catch (error) {
+          console.error('AI processing error:', error.message);
+          // Continue without AI analysis if processing fails
+        }
+      } else {
+        console.log('AI server is not available. Continuing without AI processing.');
       }
     }
 
@@ -302,9 +142,6 @@ export const uploadMultipleMedia = async (req, res, next) => {
           timeline: Array.isArray(aiResult) ? aiResult : []
         };
       }
-      
-      // Store AI result for response
-      aiResults.push({ mediaId: null, analysis: aiResult });
     } 
     // If no AI processing, add default values
     else {
@@ -322,27 +159,245 @@ export const uploadMultipleMedia = async (req, res, next) => {
     // Keep record ID reference in metadata
     mediaData.metadata.recordId = savedRecord._id;
 
-    // save media data
+    // Create and save media document
     const media = new Media(mediaData);
     const savedMedia = await media.save();
+    if (!savedMedia) {
+      // Rollback cloudinary upload and record
+      await deleteFromCloudinary(cloudinaryResult.public_id, cloudinaryResult.resource_type);
+      
+      // Delete the record we just created if save failed
+      if (mediaData.metadata && mediaData.metadata.recordId) {
+        await Record.findByIdAndDelete(mediaData.metadata.recordId);
+      }
+      
+      return next(new AppError(messages.media.failToSave, 500));
+    }
 
     savedMediaIds.push(savedMedia._id);
 
-    // Update mediaId in aiResults if we have a result for this file
-    if (aiResult && aiResults.length > 0) {
-      const lastAiResult = aiResults[aiResults.length - 1];
-      if (lastAiResult.mediaId === null) {
-        lastAiResult.mediaId = savedMedia._id;
+    // Populate uploaded info
+    const populatedMedia = await Media.findById(savedMedia._id).populate(
+      "uploadedBy",
+      "name"
+    );
+
+    // send response
+    res.status(201).json({
+      success: true,
+      message: messages.media.uploadSuccess,
+      data: populatedMedia,
+      aiProcessed: !!aiResult
+    });
+  } catch (error) {
+    // If we reach this catch block, there was an unexpected error
+    console.error('Unexpected error in uploadMedia:', error);
+    
+    // Clean up any Cloudinary uploads
+    if (cloudinaryResult) {
+      await deleteFromCloudinary(cloudinaryResult.public_id, cloudinaryResult.resource_type);
+    }
+    
+    // Clean up any records created
+    if (mediaData?.metadata?.recordId) {
+      try {
+        await Record.findByIdAndDelete(mediaData.metadata.recordId);
+      } catch (cleanupError) {
+        console.error('Error cleaning up record:', cleanupError);
       }
     }
+    
+    // Clean up any media created
+    if (savedMediaIds.length > 0) {
+      try {
+        await Media.deleteMany({ _id: { $in: savedMediaIds } });
+      } catch (cleanupError) {
+        console.error('Error cleaning up media:', cleanupError);
+      }
+    }
+    
+    return next(new AppError(error.message || 'Error uploading media', 500));
+  }
+};
 
-    return {
-      media: savedMedia,
-      aiProcessed: !!aiResult
-    };
-  });
+// Upload multiple files
+export const uploadMultipleMedia = async (req, res, next) => {
+  // Arrays to track what we've created for cleanup in case of error
+  const uploadedFiles = [];
+  const savedMediaIds = [];
+  const savedRecordIds = [];
+  const aiResults = [];
 
   try {
+    // get data
+    const files = req.files;
+    if (!files || files.length === 0) {
+      return next(new AppError(messages.media.filesRequired, 400));
+    }
+    const { title, description, collectionId } = req.body;
+
+    // Check if AI server is available once for all files
+    const isAIServerAvailable = await checkAIServerAvailability();
+
+    // process each file
+    const uploadPromises = files.map(async (file, index) => {
+      let cloudinaryResult = null;
+      let aiResult = null;
+      let savedRecord = null;
+      
+      try {
+        // upload to cloudinary
+        const folder = 'media_uploads';
+        cloudinaryResult = await uploadToCloudinary(file, folder);
+        if (!cloudinaryResult) {
+          throw new AppError(messages.media.uploadFailed, 500);
+        }
+
+        // Track uploaded file for potential rollback
+        uploadedFiles.push({
+          public_id: cloudinaryResult.public_id,
+          resource_type: cloudinaryResult.resource_type
+        });
+
+        // prepare media data
+        const mediaData = {
+          title: Array.isArray(title) ? title[index] || `Uploaded file ${index + 1}` : title || `Uploaded file ${index + 1}`,
+          description: Array.isArray(description) ? description[index] || '' : description || '',
+          fileUrl: cloudinaryResult.url,
+          publicId: cloudinaryResult.public_id,
+          fileType: cloudinaryResult.resource_type,
+          format: cloudinaryResult.format,
+          size: file.size,
+          collectionId: collectionId || null,
+          uploadedBy: req.authUser._id,
+          metadata: {} // Initialize metadata field
+        };
+
+        // Process with AI model if it's an image or video and AI server is available
+        if ((cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') && isAIServerAvailable) {
+          try {
+            // Process media with AI
+            console.log('Processing media with AI...', {
+              fileType: cloudinaryResult.resource_type,
+              hasPath: !!file.path,
+              hasBuffer: !!file.buffer,
+              fileSize: file.size
+            });
+            
+            // Pass skipAI: false to force AI processing
+            const options = { skipAI: false };
+            const enhancedMediaData = await handleAIMediaProcessing(file, mediaData, options);
+            
+            console.log('AI processing result:', {
+              processed: enhancedMediaData.aiProcessed,
+              status: enhancedMediaData.metadata?.aiStatus,
+              error: enhancedMediaData.metadata?.aiError,
+              emotion: enhancedMediaData.metadata?.emotion
+            });
+            
+            // Update media data with AI results
+            mediaData.metadata = enhancedMediaData.metadata || {};
+            aiResult = enhancedMediaData.aiResults;
+          } catch (error) {
+            console.error(`AI processing error for file ${index}:`, error.message);
+            // Continue without AI analysis if processing fails
+          }
+        }
+
+        // Create a record for this media regardless of AI processing
+        let recordData = {
+          userId: req.authUser._id,
+          mediaUrl: cloudinaryResult.url
+        };
+
+        // Only include collectionId if it's specified
+        if (collectionId) {
+          recordData.collectionId = collectionId;
+        }
+
+        // If AI processing was successful, add emotion data
+        if (aiResult) {
+          // For image
+          if (cloudinaryResult.resource_type === 'image') {
+            recordData.emotion = [mediaData.metadata.emotion || 'unknown'];
+            recordData.times = [0]; // Single timestamp for image
+            
+            // For image, just include the main emotion in the response
+            mediaData.metadata.aiAnalysis = {
+              emotion: mediaData.metadata.emotion || 'unknown'
+            };
+          } 
+          // For video
+          else {
+            // Extract emotions and timestamps from array
+            recordData.emotion = Array.isArray(aiResult) 
+              ? aiResult.map(item => item.emotion) 
+              : ['unknown'];
+            recordData.times = Array.isArray(aiResult)
+              ? aiResult.map(item => item.timestamp)
+              : [0];
+            
+            // For video, include detailed timeline in the response
+            mediaData.metadata.aiAnalysis = {
+              emotion: mediaData.metadata.emotion || 'unknown',
+              timeline: Array.isArray(aiResult) ? aiResult : []
+            };
+          }
+          
+          // Store AI result for response
+          aiResults.push({ mediaId: null, analysis: aiResult });
+        } 
+        // If no AI processing, add default values
+        else {
+          recordData.emotion = ['unknown'];
+          recordData.times = [0];
+          mediaData.metadata.aiAnalysis = {
+            emotion: 'unknown'
+          };
+        }
+
+        // Save the record
+        const record = new Record(recordData);
+        savedRecord = await record.save();
+        savedRecordIds.push(savedRecord._id);
+
+        // Keep record ID reference in metadata
+        mediaData.metadata.recordId = savedRecord._id;
+
+        // save media data
+        const media = new Media(mediaData);
+        const savedMedia = await media.save();
+
+        savedMediaIds.push(savedMedia._id);
+
+        // Update mediaId in aiResults if we have a result for this file
+        if (aiResult && aiResults.length > 0) {
+          const lastAiResult = aiResults[aiResults.length - 1];
+          if (lastAiResult.mediaId === null) {
+            lastAiResult.mediaId = savedMedia._id;
+          }
+        }
+
+        return {
+          media: savedMedia,
+          aiProcessed: !!aiResult,
+          recordId: savedRecord._id
+        };
+      } catch (error) {
+        // If this specific file upload fails, clean up its resources
+        if (cloudinaryResult) {
+          await deleteFromCloudinary(cloudinaryResult.public_id, cloudinaryResult.resource_type);
+        }
+        
+        if (savedRecord) {
+          await Record.findByIdAndDelete(savedRecord._id);
+        }
+        
+        // Return error to be handled by Promise.all
+        throw error;
+      }
+    });
+
     // Wait for all uploads to complete
     const results = await Promise.all(uploadPromises);
     
@@ -360,34 +415,36 @@ export const uploadMultipleMedia = async (req, res, next) => {
       aiResults: aiResults.length > 0 ? aiResults : null
     });
   } catch (error) {
+    console.error('Error in uploadMultipleMedia:', error);
+    
     // Rollback cloudinary uploads on error
     for (const file of uploadedFiles) {
-      await deleteFromCloudinary(file.public_id, file.resource_type);
+      try {
+        await deleteFromCloudinary(file.public_id, file.resource_type);
+      } catch (cleanupError) {
+        console.error('Error cleaning up Cloudinary upload:', cleanupError);
+      }
+    }
+    
+    // Rollback saved records
+    if (savedRecordIds.length > 0) {
+      try {
+        await Record.deleteMany({ _id: { $in: savedRecordIds } });
+      } catch (cleanupError) {
+        console.error('Error cleaning up records:', cleanupError);
+      }
     }
     
     // Rollback saved media
     if (savedMediaIds.length > 0) {
-      await Media.deleteMany({ _id: { $in: savedMediaIds } });
-      
-      // Also clean up any created records
-      // Get record IDs from saved media
-      const media = await Media.find({ _id: { $in: savedMediaIds } });
-      const recordIds = [];
-      
-      // Collect record IDs
-      for (const m of media) {
-        if (m.metadata && m.metadata.recordId) {
-          recordIds.push(m.metadata.recordId);
-        }
-      }
-      
-      // Delete records
-      if (recordIds.length > 0) {
-        await Record.deleteMany({ _id: { $in: recordIds } });
+      try {
+        await Media.deleteMany({ _id: { $in: savedMediaIds } });
+      } catch (cleanupError) {
+        console.error('Error cleaning up media:', cleanupError);
       }
     }
     
-    return next(error);
+    return next(error instanceof AppError ? error : new AppError(error.message || 'Error uploading media', 500));
   }
 };
 
