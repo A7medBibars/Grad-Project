@@ -190,13 +190,13 @@ export const uploadMedia = async (req, res, next) => {
     savedMediaIds.push(savedMedia._id);
 
     // Populate uploaded info
-    const populatedMedia = await Media.findById(savedMedia._id).populate(
-      "uploadedBy",
-      "name"
-    );
+    const populatedMedia = await Media.findById(savedMedia._id)
+      .populate("uploadedBy", "name")
+      .populate("collectionId", "name");
 
     // Get the record data for the response
-    const populatedRecord = await Record.findById(mediaData.metadata.recordId);
+    const populatedRecord = await Record.findById(mediaData.metadata.recordId)
+      .populate("collectionId", "name");
 
     // send response
     res.status(201).json({
@@ -206,7 +206,11 @@ export const uploadMedia = async (req, res, next) => {
       aiProcessed: !!aiResult,
       record: populatedRecord ? {
         emotions: populatedRecord.emotion,
-        times: populatedRecord.times
+        times: populatedRecord.times,
+        collection: populatedRecord.collectionId ? {
+          id: populatedRecord.collectionId._id,
+          name: populatedRecord.collectionId.name
+        } : null
       } : null
     });
   } catch (error) {
@@ -430,22 +434,26 @@ export const uploadMultipleMedia = async (req, res, next) => {
     // Wait for all uploads to complete
     const results = await Promise.all(uploadPromises);
     
-    // Populate uploaded media with user info
-    const populatedMedia = await Media.find({ _id: { $in: savedMediaIds } }).populate(
-      "uploadedBy",
-      "name"
-    );
+    // Populate uploaded media with user info and collection data
+    const populatedMedia = await Media.find({ _id: { $in: savedMediaIds } })
+      .populate("uploadedBy", "name")
+      .populate("collectionId", "name");
 
-    // Get record data for the response
+    // Get record data for the response with collection information
     const recordIds = results.map(result => result.recordId).filter(Boolean);
-    const records = await Record.find({ _id: { $in: recordIds } });
+    const records = await Record.find({ _id: { $in: recordIds } })
+      .populate("collectionId", "name");
 
     // Create a map of records by ID for easier lookup
     const recordMap = {};
     records.forEach(record => {
       recordMap[record._id.toString()] = {
         emotions: record.emotion,
-        times: record.times
+        times: record.times,
+        collection: record.collectionId ? {
+          id: record.collectionId._id,
+          name: record.collectionId.name
+        } : null
       };
     });
 
@@ -730,13 +738,13 @@ export const processMediaWithAI = async (req, res, next) => {
     await unlinkAsync(tempFilePath);
     
     // Populate uploaded info
-    const populatedMedia = await Media.findById(updatedMedia._id).populate(
-      "uploadedBy",
-      "name"
-    );
+    const populatedMedia = await Media.findById(updatedMedia._id)
+      .populate("uploadedBy", "name")
+      .populate("collectionId", "name");
 
     // Get the record data for the response
-    const populatedRecord = await Record.findById(updatedMedia.metadata.recordId);
+    const populatedRecord = await Record.findById(updatedMedia.metadata.recordId)
+      .populate("collectionId", "name");
 
     // send response
     res.status(200).json({
@@ -746,7 +754,11 @@ export const processMediaWithAI = async (req, res, next) => {
       aiProcessed: !!aiResult,
       record: populatedRecord ? {
         emotions: populatedRecord.emotion,
-        times: populatedRecord.times
+        times: populatedRecord.times,
+        collection: populatedRecord.collectionId ? {
+          id: populatedRecord.collectionId._id,
+          name: populatedRecord.collectionId.name
+        } : null
       } : null
     });
   } catch (error) {
