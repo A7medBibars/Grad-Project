@@ -66,9 +66,23 @@ export const uploadMedia = async (req, res, next) => {
     if (isAIServerAvailable) {
       try {
         // Process media with AI
-        console.log('Processing media with AI...');
-        const enhancedMediaData = await handleAIMediaProcessing(file, mediaData);
-        console.log('AI processing result:', enhancedMediaData.aiProcessed, enhancedMediaData.metadata.aiStatus);
+        console.log('Processing media with AI...', {
+          fileType: cloudinaryResult.resource_type,
+          hasPath: !!file.path,
+          hasBuffer: !!file.buffer,
+          fileSize: file.size
+        });
+        
+        // Pass skipAI: false to force AI processing
+        const options = { skipAI: false };
+        const enhancedMediaData = await handleAIMediaProcessing(file, mediaData, options);
+        
+        console.log('AI processing result:', {
+          processed: enhancedMediaData.aiProcessed,
+          status: enhancedMediaData.metadata?.aiStatus,
+          error: enhancedMediaData.metadata?.aiError,
+          emotion: enhancedMediaData.metadata?.emotion
+        });
         
         // Update media data with AI results
         mediaData.metadata = enhancedMediaData.metadata || {};
@@ -184,7 +198,23 @@ export const uploadMultipleMedia = async (req, res, next) => {
     if ((cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') && isAIServerAvailable) {
       try {
         // Process media with AI
-        const enhancedMediaData = await handleAIMediaProcessing(file, mediaData);
+        console.log('Processing media with AI...', {
+          fileType: cloudinaryResult.resource_type,
+          hasPath: !!file.path,
+          hasBuffer: !!file.buffer,
+          fileSize: file.size
+        });
+        
+        // Pass skipAI: false to force AI processing
+        const options = { skipAI: false };
+        const enhancedMediaData = await handleAIMediaProcessing(file, mediaData, options);
+        
+        console.log('AI processing result:', {
+          processed: enhancedMediaData.aiProcessed,
+          status: enhancedMediaData.metadata?.aiStatus,
+          error: enhancedMediaData.metadata?.aiError,
+          emotion: enhancedMediaData.metadata?.emotion
+        });
         
         // Update media data with AI results
         mediaData.metadata = enhancedMediaData.metadata || {};
@@ -486,4 +516,4 @@ export const checkAIAvailability = async (req, res, next) => {
   } catch (error) {
     return next(new AppError(`Error checking AI availability: ${error.message}`, 500));
   }
-}; 
+};

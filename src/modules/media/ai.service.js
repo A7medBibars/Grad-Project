@@ -34,7 +34,7 @@ export const processMediaWithAI = async (mediaFile, mediaType) => {
     }
 
     // Validate input
-    if (!mediaFile || !mediaFile.path) {
+    if (!mediaFile || (!mediaFile.path && !mediaFile.buffer)) {
       throw new AppError(messages.media.invalidMedia, 400);
     }
 
@@ -45,17 +45,47 @@ export const processMediaWithAI = async (mediaFile, mediaType) => {
     // Create form data for API request
     const formData = new FormData();
     
-    // Read the file content and add to form data
-    const fileStream = fs.createReadStream(mediaFile.path);
-    formData.append('file', fileStream, {
-      filename: path.basename(mediaFile.path),
-      contentType: mediaFile.mimetype
-    });
+    let tempFilePath = null;
+    
+    // Handle file input based on whether it has a path or buffer
+    if (mediaFile.path) {
+      // File is on disk - read stream directly
+      console.log('Using file path for AI processing:', mediaFile.path);
+      const fileStream = fs.createReadStream(mediaFile.path);
+      formData.append('file', fileStream, {
+        filename: path.basename(mediaFile.path),
+        contentType: mediaFile.mimetype
+      });
+    } else if (mediaFile.buffer) {
+      // File is in memory - create temporary file
+      console.log('Using buffer for AI processing, creating temp file');
+      const tempFilename = `temp_${Date.now()}_${mediaFile.originalname || 'upload.jpg'}`;
+      tempFilePath = path.join(__dirname, '../../../uploads', tempFilename);
+      
+      // Create uploads directory if it doesn't exist
+      if (!fs.existsSync(path.join(__dirname, '../../../uploads'))) {
+        fs.mkdirSync(path.join(__dirname, '../../../uploads'), { recursive: true });
+      }
+      
+      // Write buffer to temporary file
+      await writeFileAsync(tempFilePath, mediaFile.buffer);
+      
+      // Read the temporary file
+      const fileStream = fs.createReadStream(tempFilePath);
+      formData.append('file', fileStream, {
+        filename: mediaFile.originalname || 'upload.jpg',
+        contentType: mediaFile.mimetype
+      });
+    } else {
+      throw new AppError('File has neither path nor buffer', 400);
+    }
 
     // Determine endpoint based on media type
     const endpoint = mediaType === 'image' 
       ? aiConfig.endpoints.image 
       : aiConfig.endpoints.video;
+    
+    console.log(`Sending request to AI server: ${aiConfig.serverUrl}${endpoint}`);
     
     // Make request to AI server
     const response = await axios.post(`${aiConfig.serverUrl}${endpoint}`, formData, {
@@ -65,11 +95,29 @@ export const processMediaWithAI = async (mediaFile, mediaType) => {
       timeout: aiConfig.timeout
     });
 
+    // Clean up temp file if created
+    if (tempFilePath) {
+      try {
+        await unlinkAsync(tempFilePath);
+      } catch (err) {
+        console.warn('Failed to delete temporary file:', err.message);
+      }
+    }
+
     return {
       success: true,
       aiResults: response.data
     };
   } catch (error) {
+    // Clean up temp file if created
+    if (arguments[0]?.tempFilePath) {
+      try {
+        await unlinkAsync(arguments[0].tempFilePath);
+      } catch (err) {
+        console.warn('Failed to delete temporary file on error:', err.message);
+      }
+    }
+  
     // Handle errors from AI server
     if (error.response) {
       throw new AppError(
@@ -80,7 +128,7 @@ export const processMediaWithAI = async (mediaFile, mediaType) => {
     
     // Handle network or other errors
     throw new AppError(
-      `AI service error: ${error.message}`,
+      `AI service error: ${error.message || 'Unknown error'}`,
       500
     );
   }
@@ -142,7 +190,22 @@ export const checkAIServerAvailability = async () => {
 export const isFileEligibleForAI = (file) => {
   if (!file || !file.mimetype) return false;
   
-  const fileExt = path.extname(file.originalname).toLowerCase().substring(1);
+  // Get file extension either from originalname or mimetype
+  let fileExt;
+  if (file.originalname) {
+    fileExt = path.extname(file.originalname).toLowerCase().substring(1);
+  } else {
+    // Extract extension from mimetype (e.g., "image/jpeg" -> "jpeg")
+    fileExt = file.mimetype.split('/')[1];
+  }
+  
+  // Log the eligibility check
+  console.log('Checking file eligibility:', {
+    mimetype: file.mimetype,
+    extension: fileExt,
+    hasPath: !!file.path,
+    hasBuffer: !!file.buffer
+  });
   
   if (file.mimetype.startsWith('image/')) {
     return aiConfig.supportedFormats.image.includes(fileExt);
