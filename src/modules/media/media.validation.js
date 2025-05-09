@@ -6,7 +6,11 @@ export const uploadMediaVal = {
     description: Joi.string().trim(),
     collectionId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).messages({
       'string.pattern.base': 'Collection ID must be a valid MongoDB ObjectId'
-    })
+    }),
+    skipAI: Joi.boolean().default(false),
+    aiOptions: Joi.object({
+      saveResults: Joi.boolean().default(true)
+    }).default({})
   })
 };
 

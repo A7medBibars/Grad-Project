@@ -38,6 +38,14 @@ const mediaSchema = new Schema({
     ref: 'User',
     required: [true, 'User ID is required']
   },
+  metadata: {
+    type: Object,
+    default: {}
+  },
+  aiProcessed: {
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: true
 });

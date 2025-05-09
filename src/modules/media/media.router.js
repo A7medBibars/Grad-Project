@@ -4,7 +4,9 @@ import {
   uploadMultipleMedia, 
   getMedia, 
   deleteMedia, 
-  getMediaByCollection 
+  getMediaByCollection,
+  processMediaWithAI,
+  checkAIAvailability
 } from "./media.controller.js";
 import { asyncHandler } from "../../middleware/asyncHandler.js";
 import { isAuthenticated } from "../../middleware/authentication.js";
@@ -13,6 +15,12 @@ import { handleSingleUpload, handleMultipleUploads } from "../../middleware/file
 import { uploadMediaVal, updateMediaVal, getCollectionMediaVal } from "./media.validation.js";
 
 const mediaRouter = Router();
+
+// Check AI availability
+mediaRouter.get(
+  "/ai-status",
+  asyncHandler(checkAIAvailability)
+);
 
 // Upload single media file
 mediaRouter.post(
@@ -37,6 +45,14 @@ mediaRouter.get(
   "/collection/:collectionId",
   isValid(getCollectionMediaVal),
   asyncHandler(getMediaByCollection)
+);
+
+// Process existing media with AI
+mediaRouter.post(
+  "/:mediaId/process-ai",
+  isAuthenticated(),
+  isValid(updateMediaVal),
+  asyncHandler(processMediaWithAI)
 );
 
 // Get media by ID
