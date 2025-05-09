@@ -30,6 +30,21 @@ export const updateMediaVal = {
   })
 };
 
+export const assignCollectionVal = {
+  params: Joi.object({
+    mediaId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required().messages({
+      'string.pattern.base': 'Media ID must be a valid MongoDB ObjectId',
+      'any.required': 'Media ID is required'
+    })
+  }),
+  body: Joi.object({
+    collectionId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required().messages({
+      'string.pattern.base': 'Collection ID must be a valid MongoDB ObjectId',
+      'any.required': 'Collection ID is required'
+    })
+  })
+};
+
 export const getCollectionMediaVal = {
   params: Joi.object({
     collectionId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required().messages({

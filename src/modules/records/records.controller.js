@@ -47,39 +47,97 @@ export const deleteRecord = async (req, res, next) => {
   // Get record ID
   const { recordId } = req.params;
   
-  // Get the record
-  const record = await Record.findById(recordId)
-    .populate("userId", "name email")
-    .populate("collectionId", "name");
+  // Find record
+  const record = await Record.findById(recordId);
+  
+  if (!record) {
+    return next(new AppError("Record not found", 404));
+  }
+  
+  // Check if user is authorized to delete this record
+  if (record.userId.toString() !== req.authUser._id.toString()) {
+    return next(new AppError("You are not authorized to delete this record", 403));
+  }
+  
+  // Delete record
+  const result = await Record.findByIdAndDelete(recordId);
+  
+  if (!result) {
+    return next(new AppError("Failed to delete record", 500));
+  }
+  
+  // If the record was in a collection, remove it from the collection
+  if (record.collectionId) {
+    await Collection.findByIdAndUpdate(
+      record.collectionId,
+      { $pull: { records: recordId } }
+    );
+  }
+  
+  // Send response
+  res.status(200).json({
+    success: true,
+    message: "Record deleted successfully",
+  });
+};
 
+// Assign record to collection
+export const assignRecordToCollection = async (req, res, next) => {
+  // Get data
+  const { recordId } = req.params;
+  const { collectionId } = req.body;
+
+  // Check if record exists
+  const record = await Record.findById(recordId);
   if (!record) {
     return next(new AppError("Record not found", 404));
   }
 
-  // Check if user owns the record
-  if (record.userId._id.toString() !== req.authUser._id.toString()) {
-    return next(new AppError("You are not authorized to delete this record", 403));
+  // Check if user owns this record
+  if (record.userId.toString() !== req.authUser._id.toString()) {
+    return next(new AppError("You are not authorized to modify this record", 403));
   }
 
-  // Delete record
-  const deletedRecord = await Record.findByIdAndDelete(recordId);
-  
-  if (!deletedRecord) {
-    return next(new AppError("Failed to delete record", 500));
+  // Check if collection exists
+  const collection = await Collection.findById(collectionId);
+  if (!collection) {
+    return next(new AppError("Collection not found", 404));
   }
 
-  // Remove record from collection
-  if (record.collectionId) {
-    await Collection.findByIdAndUpdate(
-      record.collectionId._id,
-      { $pull: { records: recordId } }
-    );
+  // Check if record already exists in collection
+  if (collection.records.includes(recordId)) {
+    return next(new AppError("Record already exists in this collection", 409));
+  }
+
+  // Update record with collection ID
+  const updatedRecord = await Record.findByIdAndUpdate(
+    recordId,
+    { collectionId },
+    { new: true }
+  ).populate("userId", "name email")
+    .populate("collectionId", "name");
+
+  if (!updatedRecord) {
+    return next(new AppError("Failed to update record", 500));
+  }
+
+  // Update collection records array
+  const updatedCollection = await Collection.findByIdAndUpdate(
+    collectionId,
+    { $addToSet: { records: recordId } },
+    { new: true }
+  );
+
+  if (!updatedCollection) {
+    // Rollback record update if collection update fails
+    await Record.findByIdAndUpdate(recordId, { collectionId: record.collectionId || null });
+    return next(new AppError("Failed to update collection", 500));
   }
 
   // Send response
   res.status(200).json({
     success: true,
-    message: "Record deleted successfully",
-    data: record,
+    message: "Record assigned to collection successfully",
+    data: updatedRecord
   });
 }; 

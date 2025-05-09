@@ -6,13 +6,19 @@ import {
   deleteMedia, 
   getMediaByCollection,
   processMediaWithAI,
-  checkAIAvailability
+  checkAIAvailability,
+  assignMediaToCollection
 } from "./media.controller.js";
 import { asyncHandler } from "../../middleware/asyncHandler.js";
 import { isAuthenticated } from "../../middleware/authentication.js";
 import { isValid } from "../../middleware/validation.js";
 import { handleSingleUpload, handleMultipleUploads } from "../../middleware/fileUpload.js";
-import { uploadMediaVal, updateMediaVal, getCollectionMediaVal } from "./media.validation.js";
+import { 
+  uploadMediaVal, 
+  updateMediaVal, 
+  getCollectionMediaVal,
+  assignCollectionVal
+} from "./media.validation.js";
 
 const mediaRouter = Router();
 
@@ -53,6 +59,14 @@ mediaRouter.post(
   isAuthenticated(),
   isValid(updateMediaVal),
   asyncHandler(processMediaWithAI)
+);
+
+// Assign media to collection
+mediaRouter.post(
+  "/:mediaId/assign-collection",
+  isAuthenticated(),
+  isValid(assignCollectionVal),
+  asyncHandler(assignMediaToCollection)
 );
 
 // Get media by ID

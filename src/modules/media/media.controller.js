@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import axios from "axios";
 import { promises as fsPromises } from "fs";
+import { Collection } from "../../../db/index.js";
 const { unlink: unlinkAsync } = fsPromises;
 
 // Upload a single file
@@ -87,33 +88,6 @@ export const uploadMedia = async (req, res, next) => {
         // Update media data with AI results
         mediaData.metadata = enhancedMediaData.metadata || {};
         aiResult = enhancedMediaData.aiResults;
-        
-        // Create record if AI analysis was successful
-        if (aiResult) {
-          let recordData = {
-            userId: req.authUser._id,
-            collectionId: collectionId || null,
-            mediaUrl: cloudinaryResult.url
-          };
-
-          // Handle different response formats from image vs video endpoints
-          if (cloudinaryResult.resource_type === 'image') {
-            recordData.emotion = [mediaData.metadata.emotion || 'unknown'];
-            recordData.times = [0]; // Single timestamp for image
-          } else {
-            // For video: extract emotions and timestamps from array
-            recordData.emotion = Array.isArray(aiResult) 
-              ? aiResult.map(item => item.emotion) 
-              : ['unknown'];
-            recordData.times = Array.isArray(aiResult)
-              ? aiResult.map(item => item.timestamp)
-              : [0];
-          }
-
-          // Save record
-          const record = new Record(recordData);
-          await record.save();
-        }
       } catch (error) {
         console.error('AI processing error:', error.message);
         // Continue without AI analysis if processing fails
@@ -123,14 +97,78 @@ export const uploadMedia = async (req, res, next) => {
     }
   }
 
+  // Create a record for this media regardless of AI processing
+  let recordData = {
+    userId: req.authUser._id,
+    mediaUrl: cloudinaryResult.url
+  };
+
+  // Only include collectionId if it's specified
+  if (collectionId) {
+    recordData.collectionId = collectionId;
+  }
+
+  // If AI processing was successful, add emotion data
+  if (aiResult) {
+    // For image
+    if (cloudinaryResult.resource_type === 'image') {
+      recordData.emotion = [mediaData.metadata.emotion || 'unknown'];
+      recordData.times = [0]; // Single timestamp for image
+      
+      // For image, just include the main emotion in the response
+      mediaData.metadata.aiAnalysis = {
+        emotion: mediaData.metadata.emotion || 'unknown'
+      };
+    } 
+    // For video
+    else {
+      // Extract emotions and timestamps from array
+      recordData.emotion = Array.isArray(aiResult) 
+        ? aiResult.map(item => item.emotion) 
+        : ['unknown'];
+      recordData.times = Array.isArray(aiResult)
+        ? aiResult.map(item => item.timestamp)
+        : [0];
+      
+      // For video, include detailed timeline in the response
+      mediaData.metadata.aiAnalysis = {
+        emotion: mediaData.metadata.emotion || 'unknown',
+        timeline: Array.isArray(aiResult) ? aiResult : []
+      };
+    }
+  } 
+  // If no AI processing, add default values
+  else {
+    recordData.emotion = ['unknown'];
+    recordData.times = [0];
+    mediaData.metadata.aiAnalysis = {
+      emotion: 'unknown'
+    };
+  }
+
+  // Save the record
+  const record = new Record(recordData);
+  const savedRecord = await record.save();
+
+  // Keep record ID reference in metadata
+  mediaData.metadata.recordId = savedRecord._id;
+
   // Create and save media document
   const media = new Media(mediaData);
   const savedMedia = await media.save();
   if (!savedMedia) {
-    // Rollback cloudinary upload
+    // Rollback cloudinary upload and record
     await deleteFromCloudinary(cloudinaryResult.public_id, cloudinaryResult.resource_type);
+    
+    // Delete the record we just created if save failed
+    if (mediaData.metadata && mediaData.metadata.recordId) {
+      await Record.findByIdAndDelete(mediaData.metadata.recordId);
+    }
+    
     return next(new AppError(messages.media.failToSave, 500));
   }
+
+  savedMediaIds.push(savedMedia._id);
 
   // Populate uploaded info
   const populatedMedia = await Media.findById(savedMedia._id).populate(
@@ -219,51 +257,77 @@ export const uploadMultipleMedia = async (req, res, next) => {
         // Update media data with AI results
         mediaData.metadata = enhancedMediaData.metadata || {};
         aiResult = enhancedMediaData.aiResults;
-        
-        // Save AI result for response
-        if (aiResult) {
-          // Create record
-          let recordData = {
-            userId: req.authUser._id,
-            collectionId: collectionId || null,
-            mediaUrl: cloudinaryResult.url
-          };
-
-          // Handle different response formats from image vs video endpoints
-          if (cloudinaryResult.resource_type === 'image') {
-            recordData.emotion = [mediaData.metadata.emotion || 'unknown'];
-            recordData.times = [0]; // Single timestamp for image
-          } else {
-            // For video: extract emotions and timestamps from array
-            recordData.emotion = Array.isArray(aiResult) 
-              ? aiResult.map(item => item.emotion) 
-              : ['unknown'];
-            recordData.times = Array.isArray(aiResult)
-              ? aiResult.map(item => item.timestamp)
-              : [0];
-          }
-
-          // Save record
-          const record = new Record(recordData);
-          await record.save();
-          
-          aiResults.push({ mediaId: null, analysis: aiResult }); // MediaId will be updated after save
-        }
       } catch (error) {
         console.error(`AI processing error for file ${index}:`, error.message);
         // Continue without AI analysis if processing fails
       }
     }
 
+    // Create a record for this media regardless of AI processing
+    let recordData = {
+      userId: req.authUser._id,
+      mediaUrl: cloudinaryResult.url
+    };
+
+    // Only include collectionId if it's specified
+    if (collectionId) {
+      recordData.collectionId = collectionId;
+    }
+
+    // If AI processing was successful, add emotion data
+    if (aiResult) {
+      // For image
+      if (cloudinaryResult.resource_type === 'image') {
+        recordData.emotion = [mediaData.metadata.emotion || 'unknown'];
+        recordData.times = [0]; // Single timestamp for image
+        
+        // For image, just include the main emotion in the response
+        mediaData.metadata.aiAnalysis = {
+          emotion: mediaData.metadata.emotion || 'unknown'
+        };
+      } 
+      // For video
+      else {
+        // Extract emotions and timestamps from array
+        recordData.emotion = Array.isArray(aiResult) 
+          ? aiResult.map(item => item.emotion) 
+          : ['unknown'];
+        recordData.times = Array.isArray(aiResult)
+          ? aiResult.map(item => item.timestamp)
+          : [0];
+        
+        // For video, include detailed timeline in the response
+        mediaData.metadata.aiAnalysis = {
+          emotion: mediaData.metadata.emotion || 'unknown',
+          timeline: Array.isArray(aiResult) ? aiResult : []
+        };
+      }
+      
+      // Store AI result for response
+      aiResults.push({ mediaId: null, analysis: aiResult });
+    } 
+    // If no AI processing, add default values
+    else {
+      recordData.emotion = ['unknown'];
+      recordData.times = [0];
+      mediaData.metadata.aiAnalysis = {
+        emotion: 'unknown'
+      };
+    }
+
+    // Save the record
+    const record = new Record(recordData);
+    const savedRecord = await record.save();
+
+    // Keep record ID reference in metadata
+    mediaData.metadata.recordId = savedRecord._id;
+
     // save media data
     const media = new Media(mediaData);
     const savedMedia = await media.save();
-    if (!savedMedia) {
-      throw new AppError(messages.media.failToSave, 500);
-    }
 
     savedMediaIds.push(savedMedia._id);
-    
+
     // Update mediaId in aiResults if we have a result for this file
     if (aiResult && aiResults.length > 0) {
       const lastAiResult = aiResults[aiResults.length - 1];
@@ -304,6 +368,23 @@ export const uploadMultipleMedia = async (req, res, next) => {
     // Rollback saved media
     if (savedMediaIds.length > 0) {
       await Media.deleteMany({ _id: { $in: savedMediaIds } });
+      
+      // Also clean up any created records
+      // Get record IDs from saved media
+      const media = await Media.find({ _id: { $in: savedMediaIds } });
+      const recordIds = [];
+      
+      // Collect record IDs
+      for (const m of media) {
+        if (m.metadata && m.metadata.recordId) {
+          recordIds.push(m.metadata.recordId);
+        }
+      }
+      
+      // Delete records
+      if (recordIds.length > 0) {
+        await Record.deleteMany({ _id: { $in: recordIds } });
+      }
     }
     
     return next(error);
@@ -458,21 +539,33 @@ export const processMediaWithAI = async (req, res, next) => {
       { new: true }
     ).populate("uploadedBy", "name");
     
-    // Create record if AI analysis was successful
-    if (enhancedMediaData.aiResults) {
-      const aiResult = enhancedMediaData.aiResults;
-      let recordData = {
-        userId: req.authUser._id,
-        collectionId: media.collectionId || null,
-        mediaUrl: media.fileUrl
-      };
+    // Create a record for this media whether AI processing succeeded or not
+    const aiResult = enhancedMediaData.aiResults;
+    let recordData = {
+      userId: req.authUser._id,
+      mediaUrl: media.fileUrl
+    };
 
-      // Handle different response formats from image vs video endpoints
+    // Only include collectionId if media already has one
+    if (media.collectionId) {
+      recordData.collectionId = media.collectionId;
+    }
+
+    // If AI processing was successful, add emotion data
+    if (aiResult) {
+      // For image
       if (media.fileType === 'image') {
         recordData.emotion = [enhancedMediaData.metadata.emotion || 'unknown'];
         recordData.times = [0]; // Single timestamp for image
-      } else {
-        // For video: extract emotions and timestamps from array
+        
+        // For image, just include the main emotion in the response
+        enhancedMediaData.metadata.aiAnalysis = {
+          emotion: enhancedMediaData.metadata.emotion || 'unknown'
+        };
+      } 
+      // For video
+      else {
+        // Extract emotions and timestamps from array
         recordData.emotion = Array.isArray(aiResult) 
           ? aiResult.map(item => item.emotion) 
           : ['unknown'];
@@ -480,10 +573,33 @@ export const processMediaWithAI = async (req, res, next) => {
           ? aiResult.map(item => item.timestamp)
           : [0];
       }
+    } 
+    // If no AI processing, add default values
+    else {
+      recordData.emotion = ['unknown'];
+      recordData.times = [0];
+      enhancedMediaData.metadata.aiAnalysis = {
+        emotion: 'unknown'
+      };
+    }
 
-      // Save record
+    // Check if there's already a record ID in metadata
+    let savedRecord;
+    if (media.metadata && media.metadata.recordId) {
+      // Update existing record with new data
+      savedRecord = await Record.findByIdAndUpdate(
+        media.metadata.recordId,
+        recordData,
+        { new: true }
+      );
+    } else {
+      // Create a new record
       const record = new Record(recordData);
-      await record.save();
+      savedRecord = await record.save();
+      
+      // Update media with record ID reference
+      updatedMedia.metadata.recordId = savedRecord._id;
+      await updatedMedia.save();
     }
     
     // Delete temporary file
@@ -515,5 +631,93 @@ export const checkAIAvailability = async (req, res, next) => {
     });
   } catch (error) {
     return next(new AppError(`Error checking AI availability: ${error.message}`, 500));
+  }
+};
+
+// Assign media to a collection
+export const assignMediaToCollection = async (req, res, next) => {
+  try {
+    // Get media ID and collection ID
+    const { mediaId } = req.params;
+    const { collectionId } = req.body;
+    
+    // Validate the collection ID
+    if (!collectionId) {
+      return next(new AppError('Collection ID is required', 400));
+    }
+    
+    // Check if media exists
+    const media = await Media.findById(mediaId);
+    if (!media) {
+      return next(new AppError(messages.media.notFound, 404));
+    }
+    
+    // Check authorization
+    if (req.authUser._id.toString() !== media.uploadedBy.toString()) {
+      return next(new AppError(messages.media.notAuthorized, 403));
+    }
+    
+    // Check if collection exists
+    const collection = await Collection.findById(collectionId);
+    if (!collection) {
+      return next(new AppError('Collection not found', 404));
+    }
+    
+    // Update media with collection ID
+    const updatedMedia = await Media.findByIdAndUpdate(
+      mediaId,
+      { collectionId },
+      { new: true }
+    ).populate('uploadedBy', 'name');
+    
+    // If there's a record ID in metadata, use the records module to update it
+    if (media.metadata && media.metadata.recordId) {
+      // We'll use an internal request rather than redirecting the user
+      // This allows us to handle errors properly and provide a consistent response
+      
+      // Create a mock request for the records controller
+      const recordUpdateReq = {
+        params: { recordId: media.metadata.recordId },
+        body: { collectionId },
+        authUser: req.authUser
+      };
+      
+      // Create a mock response to capture the result
+      let recordUpdateError = null;
+      const recordUpdateRes = {
+        status: () => ({ 
+          json: (data) => { return data; }
+        })
+      };
+      
+      // Create a mock next function to capture errors
+      const recordUpdateNext = (error) => {
+        recordUpdateError = error;
+      };
+      
+      try {
+        // Import the assignRecordToCollection function dynamically
+        const { assignRecordToCollection } = await import('../records/records.controller.js');
+        
+        // Call the function directly
+        await assignRecordToCollection(recordUpdateReq, recordUpdateRes, recordUpdateNext);
+        
+        // If there was an error, log it but continue
+        if (recordUpdateError) {
+          console.error('Error assigning record to collection:', recordUpdateError);
+        }
+      } catch (recordError) {
+        console.error('Error importing or calling records controller:', recordError);
+      }
+    }
+    
+    // Send response
+    res.status(200).json({
+      success: true,
+      message: 'Media assigned to collection successfully',
+      data: updatedMedia
+    });
+  } catch (error) {
+    return next(new AppError(`Failed to assign media to collection: ${error.message}`, 500));
   }
 };

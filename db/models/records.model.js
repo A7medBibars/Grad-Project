@@ -11,7 +11,7 @@ const recordsSchema = new Schema(
     collectionId: {
       type: Schema.Types.ObjectId,
       ref: 'Collection',
-      required: true
+      required: false
     },
     mediaUrl: {
       type: String,
