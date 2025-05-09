@@ -3,7 +3,11 @@ import { Record } from "../../../db/index.js";
 import { AppError } from "../../utils/appError.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../../utils/cloudinary.js";
 import { messages } from "../../utils/constants/messages.js";
-import { handleAIMediaProcessing, checkAIServerAvailability } from "./ai.service.js";
+import { 
+  handleAIMediaProcessing, 
+  checkAIServerAvailability,
+  getDominantEmotion
+} from "./ai.service.js";
 import { aiConfig } from "../../config/ai.config.js";
 import FormData from "form-data";
 import fs from "fs";
@@ -129,18 +133,27 @@ export const uploadMedia = async (req, res, next) => {
       // For video
       else {
         // Extract emotions and timestamps from array
-        recordData.emotion = Array.isArray(aiResult) 
-          ? aiResult.map(item => item.emotion) 
-          : ['unknown'];
-        recordData.times = Array.isArray(aiResult)
-          ? aiResult.map(item => item.timestamp)
-          : [0];
-        
-        // For video, include detailed timeline in the response
-        mediaData.metadata.aiAnalysis = {
-          emotion: mediaData.metadata.emotion || 'unknown',
-          timeline: Array.isArray(aiResult) ? aiResult : []
-        };
+        if (Array.isArray(aiResult)) {
+          console.log('Video analysis result contains', aiResult.length, 'entries');
+          
+          // Store all emotions and timestamps
+          recordData.emotion = aiResult.map(item => item.emotion);
+          recordData.times = aiResult.map(item => item.timestamp);
+          
+          // For video, include detailed timeline in the response
+          mediaData.metadata.aiAnalysis = {
+            emotion: getDominantEmotion(aiResult), // Set the dominant emotion as the main one
+            timeline: aiResult
+          };
+        } else {
+          console.warn('Expected array for video analysis but got:', typeof aiResult);
+          recordData.emotion = ['unknown'];
+          recordData.times = [0];
+          mediaData.metadata.aiAnalysis = {
+            emotion: 'unknown',
+            timeline: []
+          };
+        }
       }
     } 
     // If no AI processing, add default values
@@ -330,18 +343,27 @@ export const uploadMultipleMedia = async (req, res, next) => {
           // For video
           else {
             // Extract emotions and timestamps from array
-            recordData.emotion = Array.isArray(aiResult) 
-              ? aiResult.map(item => item.emotion) 
-              : ['unknown'];
-            recordData.times = Array.isArray(aiResult)
-              ? aiResult.map(item => item.timestamp)
-              : [0];
-            
-            // For video, include detailed timeline in the response
-            mediaData.metadata.aiAnalysis = {
-              emotion: mediaData.metadata.emotion || 'unknown',
-              timeline: Array.isArray(aiResult) ? aiResult : []
-            };
+            if (Array.isArray(aiResult)) {
+              console.log('Video analysis result contains', aiResult.length, 'entries');
+              
+              // Store all emotions and timestamps
+              recordData.emotion = aiResult.map(item => item.emotion);
+              recordData.times = aiResult.map(item => item.timestamp);
+              
+              // For video, include detailed timeline in the response
+              mediaData.metadata.aiAnalysis = {
+                emotion: getDominantEmotion(aiResult), // Set the dominant emotion as the main one
+                timeline: aiResult
+              };
+            } else {
+              console.warn('Expected array for video analysis but got:', typeof aiResult);
+              recordData.emotion = ['unknown'];
+              recordData.times = [0];
+              mediaData.metadata.aiAnalysis = {
+                emotion: 'unknown',
+                timeline: []
+              };
+            }
           }
           
           // Store AI result for response
@@ -623,12 +645,27 @@ export const processMediaWithAI = async (req, res, next) => {
       // For video
       else {
         // Extract emotions and timestamps from array
-        recordData.emotion = Array.isArray(aiResult) 
-          ? aiResult.map(item => item.emotion) 
-          : ['unknown'];
-        recordData.times = Array.isArray(aiResult)
-          ? aiResult.map(item => item.timestamp)
-          : [0];
+        if (Array.isArray(aiResult)) {
+          console.log('Video analysis result contains', aiResult.length, 'entries');
+          
+          // Store all emotions and timestamps
+          recordData.emotion = aiResult.map(item => item.emotion);
+          recordData.times = aiResult.map(item => item.timestamp);
+          
+          // For video, include detailed timeline in the response
+          enhancedMediaData.metadata.aiAnalysis = {
+            emotion: getDominantEmotion(aiResult), // Set the dominant emotion as the main one
+            timeline: aiResult
+          };
+        } else {
+          console.warn('Expected array for video analysis but got:', typeof aiResult);
+          recordData.emotion = ['unknown'];
+          recordData.times = [0];
+          enhancedMediaData.metadata.aiAnalysis = {
+            emotion: 'unknown',
+            timeline: []
+          };
+        }
       }
     } 
     // If no AI processing, add default values

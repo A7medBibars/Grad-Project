@@ -87,13 +87,37 @@ export const processMediaWithAI = async (mediaFile, mediaType) => {
     
     console.log(`Sending request to AI server: ${aiConfig.serverUrl}${endpoint}`);
     
-    // Make request to AI server
+    // Make request to AI server with increased timeout for videos
+    const timeout = mediaType === 'video' ? aiConfig.videoTimeout : aiConfig.timeout;
+    
+    console.log(`Making request to AI server for ${mediaType} with timeout ${timeout}ms`);
+    
     const response = await axios.post(`${aiConfig.serverUrl}${endpoint}`, formData, {
       headers: {
         ...formData.getHeaders()
       },
-      timeout: aiConfig.timeout
+      timeout: timeout,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
     });
+    
+    // Log the response information
+    console.log('AI Server Response status:', response.status);
+    console.log('AI Server Response size:', JSON.stringify(response.data).length, 'characters');
+
+    // For video responses, log summary of the data
+    if (mediaType === 'video' && Array.isArray(response.data)) {
+      console.log('Video analysis contains', response.data.length, 'timestamps');
+      console.log('First few entries:', JSON.stringify(response.data.slice(0, 3)));
+      console.log('Last few entries:', JSON.stringify(response.data.slice(-3)));
+      
+      // Count emotions
+      const emotionCounts = response.data.reduce((counts, item) => {
+        counts[item.emotion] = (counts[item.emotion] || 0) + 1;
+        return counts;
+      }, {});
+      console.log('Emotion counts:', emotionCounts);
+    }
 
     // Clean up temp file if created
     if (tempFilePath) {

@@ -14,7 +14,13 @@ export const aiConfig = {
    * Timeout for AI processing requests (in milliseconds)
    * Larger files like videos may need longer timeouts
    */
-  timeout: parseInt(process.env.AI_TIMEOUT || '30000', 10),
+  timeout: parseInt(process.env.AI_TIMEOUT || '60000', 10),
+  
+  /**
+   * Timeout for video processing (in milliseconds)
+   * Videos need longer timeouts due to their size and processing requirements
+   */
+  videoTimeout: parseInt(process.env.AI_VIDEO_TIMEOUT || '120000', 10),
   
   /**
    * Whether to enable AI processing by default
