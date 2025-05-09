@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
-import AppError from '../../utils/appError.js';
+import { AppError } from '../../utils/appError.js';
 import { messages } from '../../utils/constants/messages.js';
 import { aiConfig } from '../../config/ai.config.js';
 import FormData from 'form-data';
