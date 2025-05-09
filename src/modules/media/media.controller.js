@@ -1,5 +1,6 @@
 import { Media } from "../../../db/index.js";
 import { Record } from "../../../db/index.js";
+import { Collection } from "../../../db/index.js";
 import { AppError } from "../../utils/appError.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../../utils/cloudinary.js";
 import { messages } from "../../utils/constants/messages.js";
@@ -14,7 +15,6 @@ import fs from "fs";
 import path from "path";
 import axios from "axios";
 import { promises as fsPromises } from "fs";
-import { Collection } from "../../../db/index.js";
 const { unlink: unlinkAsync } = fsPromises;
 
 // Upload a single file
@@ -195,12 +195,19 @@ export const uploadMedia = async (req, res, next) => {
       "name"
     );
 
+    // Get the record data for the response
+    const populatedRecord = await Record.findById(mediaData.metadata.recordId);
+
     // send response
     res.status(201).json({
       success: true,
       message: messages.media.uploadSuccess,
       data: populatedMedia,
-      aiProcessed: !!aiResult
+      aiProcessed: !!aiResult,
+      record: populatedRecord ? {
+        emotions: populatedRecord.emotion,
+        times: populatedRecord.times
+      } : null
     });
   } catch (error) {
     // If we reach this catch block, there was an unexpected error
@@ -429,12 +436,35 @@ export const uploadMultipleMedia = async (req, res, next) => {
       "name"
     );
 
+    // Get record data for the response
+    const recordIds = results.map(result => result.recordId).filter(Boolean);
+    const records = await Record.find({ _id: { $in: recordIds } });
+
+    // Create a map of records by ID for easier lookup
+    const recordMap = {};
+    records.forEach(record => {
+      recordMap[record._id.toString()] = {
+        emotions: record.emotion,
+        times: record.times
+      };
+    });
+
+    // Map media to their records
+    const mediaWithRecords = populatedMedia.map(media => {
+      const recordId = media.metadata?.recordId;
+      return {
+        ...media.toObject(),
+        record: recordId ? recordMap[recordId.toString()] : null
+      };
+    });
+
     // send response
     res.status(201).json({
       success: true,
       message: messages.media.uploadSuccess,
       data: populatedMedia,
-      aiResults: aiResults.length > 0 ? aiResults : null
+      aiResults: aiResults.length > 0 ? aiResults : null,
+      records: recordMap
     });
   } catch (error) {
     console.error('Error in uploadMultipleMedia:', error);
@@ -699,11 +729,25 @@ export const processMediaWithAI = async (req, res, next) => {
     // Delete temporary file
     await unlinkAsync(tempFilePath);
     
-    // Send response
+    // Populate uploaded info
+    const populatedMedia = await Media.findById(updatedMedia._id).populate(
+      "uploadedBy",
+      "name"
+    );
+
+    // Get the record data for the response
+    const populatedRecord = await Record.findById(updatedMedia.metadata.recordId);
+
+    // send response
     res.status(200).json({
       success: true,
       message: 'AI processing completed successfully',
-      data: updatedMedia
+      data: populatedMedia,
+      aiProcessed: !!aiResult,
+      record: populatedRecord ? {
+        emotions: populatedRecord.emotion,
+        times: populatedRecord.times
+      } : null
     });
   } catch (error) {
     // Handle errors
