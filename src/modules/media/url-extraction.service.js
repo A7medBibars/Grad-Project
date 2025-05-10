@@ -8,10 +8,15 @@ import { promises as fsPromises } from 'fs';
 import { AppError } from '../../utils/appError.js';
 import { messages } from '../../utils/constants/messages.js';
 import { aiConfig } from '../../config/ai.config.js';
+import fbgraph from 'fbgraph';
+import { promisify } from 'util';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Promisify fbgraph get method
+const graphGet = promisify(fbgraph.get);
 
 /**
  * Social media platform API identifiers
@@ -240,6 +245,63 @@ async function extractFromSocialMedia(url, platform, uploadsDir) {
 }
 
 /**
+ * Extract Facebook post ID from URL
+ * @param {string} url - The Facebook URL
+ * @returns {string|null} - The post ID, or null if not found
+ */
+function extractFacebookPostId(url) {
+  try {
+    // Parse the URL
+    const urlObj = new URL(url);
+    
+    // Handle various Facebook URL formats
+    if (urlObj.hostname.includes('facebook.com') || urlObj.hostname.includes('fb.com')) {
+      const pathname = urlObj.pathname;
+      
+      // Format: facebook.com/permalink.php?story_fbid=123456789&id=987654321
+      const storyFbid = urlObj.searchParams.get('story_fbid');
+      if (storyFbid) {
+        return storyFbid;
+      }
+      
+      // Format: facebook.com/photo.php?fbid=123456789
+      // Format: facebook.com/video.php?v=123456789
+      const fbid = urlObj.searchParams.get('fbid') || urlObj.searchParams.get('v');
+      if (fbid) {
+        return fbid;
+      }
+      
+      // Format: facebook.com/username/posts/123456789
+      const postsMatch = pathname.match(/\/posts\/(\d+)/);
+      if (postsMatch) {
+        return postsMatch[1];
+      }
+      
+      // Format: facebook.com/username/videos/123456789
+      const videosMatch = pathname.match(/\/videos\/(\d+)/);
+      if (videosMatch) {
+        return videosMatch[1];
+      }
+      
+      // Format: facebook.com/photo/?fbid=123456789
+      // Handle path segments
+      const pathSegments = pathname.split('/').filter(Boolean);
+      if (pathSegments.length >= 2) {
+        const lastSegment = pathSegments[pathSegments.length - 1];
+        if (/^\d+$/.test(lastSegment)) {
+          return lastSegment;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error parsing Facebook URL:', error);
+    return null;
+  }
+}
+
+/**
  * Extract media from a Facebook post
  * @param {string} url - The Facebook post URL
  * @param {string} uploadsDir - The directory to save files to
@@ -251,6 +313,94 @@ async function extractFromFacebook(url, uploadsDir) {
     throw new AppError('Facebook URL extraction is disabled', 400);
   }
   
+  // First, check if Facebook Graph API is enabled and configured
+  const graphApiEnabled = aiConfig.urlExtraction.socialMedia?.platforms?.facebook?.graphApi?.enabled;
+  const accessToken = aiConfig.urlExtraction.socialMedia?.platforms?.facebook?.graphApi?.accessToken;
+  
+  if (graphApiEnabled && accessToken) {
+    try {
+      // Extract the post ID from the URL
+      const postId = extractFacebookPostId(url);
+      
+      if (!postId) {
+        console.log('Could not extract Facebook post ID from URL, falling back to HTML extraction');
+        return await fallbackFacebookExtraction(url, uploadsDir);
+      }
+      
+      // Set the Facebook Graph API version and access token
+      const apiVersion = aiConfig.urlExtraction.socialMedia?.platforms?.facebook?.graphApi?.version || 'v18.0';
+      fbgraph.setVersion(apiVersion);
+      fbgraph.setAccessToken(accessToken);
+      
+      // Define the fields we want to retrieve
+      const fields = 'id,message,full_picture,attachments{media,media_type,url,target{id},subattachments}';
+      
+      // Make the Graph API request
+      const postData = await graphGet(`${postId}?fields=${fields}`);
+      
+      // Process the response to find media URLs
+      let mediaUrl = null;
+      let mediaType = 'image';
+      
+      // First, check for full picture
+      if (postData.full_picture) {
+        mediaUrl = postData.full_picture;
+        mediaType = 'image';
+      }
+      
+      // Check for attachments
+      if (!mediaUrl && postData.attachments && postData.attachments.data && postData.attachments.data.length > 0) {
+        const attachment = postData.attachments.data[0];
+        
+        // Handle different types of attachments
+        if (attachment.media_type === 'photo' && attachment.media && attachment.media.image) {
+          mediaUrl = attachment.media.image.src;
+          mediaType = 'image';
+        } else if (attachment.media_type === 'video' && attachment.media && attachment.media.source) {
+          mediaUrl = attachment.media.source;
+          mediaType = 'video';
+        } else if (attachment.url) {
+          // If there's a URL but no direct media, we can try to use it
+          mediaUrl = attachment.url;
+          mediaType = attachment.media_type === 'video' ? 'video' : 'image';
+        }
+        
+        // Check subattachments if we still don't have a media URL
+        if (!mediaUrl && attachment.subattachments && attachment.subattachments.data && attachment.subattachments.data.length > 0) {
+          const subattachment = attachment.subattachments.data[0];
+          if (subattachment.media && subattachment.media.image) {
+            mediaUrl = subattachment.media.image.src;
+            mediaType = 'image';
+          }
+        }
+      }
+      
+      // If we found a media URL, download and process it
+      if (mediaUrl) {
+        return await downloadAndProcessMedia(mediaUrl, mediaType, url, uploadsDir);
+      }
+      
+      // If we couldn't find media through the Graph API, fall back to HTML extraction
+      console.log('No media found in Facebook Graph API response, falling back to HTML extraction');
+      return await fallbackFacebookExtraction(url, uploadsDir);
+    } catch (error) {
+      console.error('Error using Facebook Graph API:', error);
+      // If there's an error with the Graph API, fall back to HTML extraction
+      return await fallbackFacebookExtraction(url, uploadsDir);
+    }
+  } else {
+    // If Graph API is not enabled or configured, use HTML extraction
+    return await fallbackFacebookExtraction(url, uploadsDir);
+  }
+}
+
+/**
+ * Fallback method for Facebook extraction using HTML scraping
+ * @param {string} url - The Facebook post URL
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function fallbackFacebookExtraction(url, uploadsDir) {
   // Try to get the media using normal website extraction
   try {
     return await extractFromWebsite(url, uploadsDir);

@@ -20,6 +20,7 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
+    "fbgraph": "^1.4.4",
     "form-data": "^4.0.2",
     "google-auth-library": "^9.6.3",
     "joi": "^17.13.3",

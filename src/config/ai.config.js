@@ -101,7 +101,18 @@ export const aiConfig = {
       platforms: {
         facebook: {
           enabled: process.env.SOCIAL_MEDIA_FACEBOOK_ENABLED !== 'false',
-          useMobileVersion: true
+          useMobileVersion: true,
+          /**
+           * Facebook Graph API settings
+           * For accessing non-public content, you'll need an access token
+           */
+          graphApi: {
+            enabled: process.env.FACEBOOK_GRAPH_API_ENABLED !== 'false',
+            version: process.env.FACEBOOK_GRAPH_API_VERSION || 'v18.0',
+            accessToken: process.env.FACEBOOK_GRAPH_API_ACCESS_TOKEN || '',
+            appId: process.env.FACEBOOK_APP_ID || '',
+            appSecret: process.env.FACEBOOK_APP_SECRET || ''
+          }
         },
         instagram: {
           enabled: process.env.SOCIAL_MEDIA_INSTAGRAM_ENABLED !== 'false'
