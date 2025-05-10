@@ -71,22 +71,6 @@ userRouter.delete(
 
 //get my data
 userRouter.get("/profile", isAuthenticated(), asyncHandler(getAccount));
-//get by id
-userRouter.get("/:id", asyncHandler(getDataById));
-
-userRouter.post(
-  "/forget-password",
-  isValid(forgetPassVal),
-  asyncHandler(forgetPassword)
-);
-userRouter.put(
-  "/change-password",
-  isValid(changePassVal),
-  asyncHandler(changePassword)
-);
-
-// Google OAuth login
-userRouter.post("/google-login", isValid(googleLoginVal), asyncHandler(googleLogin));
 
 // Get user collections
 userRouter.get(
@@ -103,5 +87,22 @@ userRouter.get(
   isAuthorized(roles.USER),
   asyncHandler(getUserHistory)
 );
+
+//get by id
+userRouter.get("/:id", asyncHandler(getDataById));
+
+userRouter.post(
+  "/forget-password",
+  isValid(forgetPassVal),
+  asyncHandler(forgetPassword)
+);
+userRouter.put(
+  "/change-password",
+  isValid(changePassVal),
+  asyncHandler(changePassword)
+);
+
+// Google OAuth login
+userRouter.post("/google-login", isValid(googleLoginVal), asyncHandler(googleLogin));
 
 export default userRouter;

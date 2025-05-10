@@ -9,6 +9,7 @@ import { generateToken, verifyToken } from "../../utils/token.js";
 import bcrypt from "bcrypt";
 import { OAuth2Client } from "google-auth-library";
 import dotenv from "dotenv";
+import { Record } from "../../../db/index.js";
 
 dotenv.config({ path: "./config/.env" });
 
@@ -464,23 +465,16 @@ export const getUserCollections = async (req, res, next) => {
 // Get user history (records)
 export const getUserHistory = async (req, res, next) => {
   try {
-    // Get user with populated records
-    const user = await User.findById(req.authUser._id)
-      .populate({
-        path: 'records',
-        select: 'mediaUrl times emotion collectionId createdAt',
-        populate: {
-          path: 'collectionId',
-          select: 'name'
-        }
-      });
-
-    if (!user) {
-      return next(new AppError(messages.user.notFound, 404));
-    }
-
+    const userId = req.authUser._id;
+    
+    // Query records directly from the Record collection instead of through User
+    const records = await Record.find({ userId })
+      .select('mediaUrl times emotion collectionId createdAt')
+      .populate('collectionId', 'name')
+      .sort({ createdAt: -1 });
+    
     // Format the records data
-    const history = user.records.map(record => ({
+    const history = records.map(record => ({
       id: record._id,
       mediaUrl: record.mediaUrl,
       times: record.times,
