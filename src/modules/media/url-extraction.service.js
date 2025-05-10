@@ -251,332 +251,26 @@ async function extractFromFacebook(url, uploadsDir) {
     throw new AppError('Facebook URL extraction is disabled', 400);
   }
   
+  // Try to get the media using normal website extraction
   try {
-    // First attempt: Try to get media using regular extraction
-    try {
-      return await extractFromWebsite(url, uploadsDir);
-    } catch (error) {
-      console.log("Regular extraction failed for Facebook, trying specialized approaches...");
-    }
-    
-    // Second attempt: Try mobile version
+    return await extractFromWebsite(url, uploadsDir);
+  } catch (error) {
+    // If that fails, check if we should try alternative URLs
     const useAlternatives = aiConfig.urlExtraction.socialMedia?.useAlternatives !== false;
     const useMobileVersion = aiConfig.urlExtraction.socialMedia?.platforms?.facebook?.useMobileVersion !== false;
     
     if (useAlternatives && useMobileVersion) {
+      // Try mobile version which might be more accessible
+      const mobileUrl = url.replace('www.facebook.com', 'm.facebook.com');
+      
       try {
-        const mobileUrl = url.replace('www.facebook.com', 'm.facebook.com');
         return await extractFromWebsite(mobileUrl, uploadsDir);
-      } catch (mobileError) {
-        console.log("Mobile version extraction failed for Facebook");
+      } catch (secondError) {
+        throw new AppError('Could not extract media from Facebook URL. Facebook may require authentication to access this content.', 400);
       }
+    } else {
+      throw new AppError('Could not extract media from Facebook URL. Facebook may require authentication to access this content.', 400);
     }
-    
-    // Third attempt: Try Facebook Graph API with access token if available
-    if (process.env.FACEBOOK_ACCESS_TOKEN) {
-      try {
-        console.log("Attempting to use Facebook Graph API with access token");
-        
-        // Extract the Facebook ID or post ID
-        const facebookId = extractFacebookId(url);
-        if (facebookId) {
-          console.log(`Extracted Facebook ID: ${facebookId}, attempting Graph API with token`);
-          
-          // Different API endpoints to try
-          const graphAPIEndpoints = [
-            // Try to get post with attached media
-            `https://graph.facebook.com/v18.0/${facebookId}?fields=full_picture,attachments{media,media_type,url,subattachments}&access_token=${process.env.FACEBOOK_ACCESS_TOKEN}`,
-            // Try to get post directly
-            `https://graph.facebook.com/v18.0/${facebookId}?fields=full_picture&access_token=${process.env.FACEBOOK_ACCESS_TOKEN}`,
-            // Try with photo endpoint
-            `https://graph.facebook.com/v18.0/${facebookId}?fields=images&access_token=${process.env.FACEBOOK_ACCESS_TOKEN}`
-          ];
-          
-          for (const endpoint of graphAPIEndpoints) {
-            try {
-              const graphResponse = await axios.get(endpoint, {
-                timeout: 15000,
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-              });
-              
-              if (graphResponse.data) {
-                // Check for full_picture in response
-                if (graphResponse.data.full_picture) {
-                  return await downloadAndProcessMedia(graphResponse.data.full_picture, 'image', url, uploadsDir);
-                }
-                
-                // Check for attachments
-                if (graphResponse.data.attachments && 
-                    graphResponse.data.attachments.data && 
-                    graphResponse.data.attachments.data.length > 0) {
-                  
-                  const attachment = graphResponse.data.attachments.data[0];
-                  
-                  // Check if there's media
-                  if (attachment.media && attachment.media.image && attachment.media.image.src) {
-                    return await downloadAndProcessMedia(attachment.media.image.src, 'image', url, uploadsDir);
-                  }
-                  
-                  // Check for subattachments (multiple media)
-                  if (attachment.subattachments && 
-                      attachment.subattachments.data && 
-                      attachment.subattachments.data.length > 0) {
-                    
-                    const subattachment = attachment.subattachments.data[0];
-                    if (subattachment.media && subattachment.media.image && subattachment.media.image.src) {
-                      return await downloadAndProcessMedia(subattachment.media.image.src, 'image', url, uploadsDir);
-                    }
-                  }
-                }
-                
-                // Check for images array (used in photos)
-                if (graphResponse.data.images && graphResponse.data.images.length > 0) {
-                  // Get the largest image (first one usually)
-                  const largestImage = graphResponse.data.images[0];
-                  return await downloadAndProcessMedia(largestImage.source, 'image', url, uploadsDir);
-                }
-              }
-            } catch (endpointError) {
-              console.log(`Graph API endpoint ${endpoint.substring(0, 50)}... failed:`, endpointError.message);
-              // Continue to next endpoint
-            }
-          }
-        }
-      } catch (tokenError) {
-        console.log("Facebook Graph API with token failed:", tokenError.message);
-      }
-    }
-    
-    // Fourth attempt: Try to extract the ID and use public Graph API
-    try {
-      const facebookId = extractFacebookId(url);
-      if (facebookId) {
-        console.log(`Extracted Facebook ID: ${facebookId}, attempting public Graph API`);
-        
-        // Try to get the picture from Graph API (public endpoint)
-        const graphUrl = `https://graph.facebook.com/${facebookId}/picture?type=large`;
-        
-        // Test if the URL returns a valid image
-        const testResponse = await axios.head(graphUrl, {
-          timeout: 10000,
-          validateStatus: status => status < 400, // Accept any success status
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-          }
-        });
-        
-        // If we got a success response and it's an image
-        if (testResponse.status < 400 && testResponse.headers['content-type'] && 
-            testResponse.headers['content-type'].startsWith('image/')) {
-          return await downloadAndProcessMedia(graphUrl, 'image', url, uploadsDir);
-        }
-      }
-    } catch (graphError) {
-      console.log("Public Graph API extraction failed for Facebook:", graphError.message);
-    }
-    
-    // Fifth attempt: Try to access the post via oembed API
-    try {
-      const originalUrl = new URL(url);
-      // Clean URL parameters
-      const cleanUrl = `${originalUrl.protocol}//${originalUrl.host}${originalUrl.pathname}`;
-      const oembedUrl = `https://www.facebook.com/plugins/post/oembed.json/?url=${encodeURIComponent(cleanUrl)}`;
-      
-      const oembedResponse = await axios.get(oembedUrl, {
-        timeout: 30000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      });
-      
-      if (oembedResponse.data && oembedResponse.data.html) {
-        // Extract image from the HTML
-        const htmlContent = oembedResponse.data.html;
-        
-        // Look for image in the oEmbed HTML
-        const imgMatch = htmlContent.match(/background-image:url\(['"]?(.*?)['"]?\)/i) || 
-                         htmlContent.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/i);
-                         
-        if (imgMatch && imgMatch[1]) {
-          const imgUrl = imgMatch[1];
-          return await downloadAndProcessMedia(imgUrl, 'image', url, uploadsDir);
-        }
-      }
-    } catch (oembedError) {
-      console.log("oEmbed extraction failed for Facebook:", oembedError.message);
-    }
-    
-    // Sixth attempt: Try direct approach for Facebook photos
-    if (url.includes('/photos/') || url.includes('/photo.php')) {
-      try {
-        const photoResponse = await axios.get(url, {
-          timeout: 30000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml'
-          }
-        });
-        
-        // Use regular expressions to find the image URL in the response
-        const htmlContent = photoResponse.data;
-        
-        // Look for FB photo URLs
-        const photoMatches = [
-          // Match photo URLs
-          htmlContent.match(/og:image" content="([^"]+)"/),
-          htmlContent.match(/div class="photo_wrap[^>]*><img src="([^"]+)"/),
-          htmlContent.match(/style="background-image: url\('([^']+)'\)"/),
-          htmlContent.match(/"image":{"uri":"([^"]+)"/)
-        ];
-        
-        for (const match of photoMatches) {
-          if (match && match[1]) {
-            // Found a photo URL
-            const photoUrl = match[1].replace(/\\/g, '');
-            return await downloadAndProcessMedia(photoUrl, 'image', url, uploadsDir);
-          }
-        }
-      } catch (photoError) {
-        console.log("Direct photo extraction failed for Facebook:", photoError.message);
-      }
-    }
-    
-    // Seventh attempt: Try to extract from page preview
-    try {
-      const previewUrl = `https://developers.facebook.com/tools/debug/?q=${encodeURIComponent(url)}`;
-      const response = await axios.get(previewUrl, {
-        timeout: 30000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      });
-      
-      const $ = await loadCheerio(response.data);
-      
-      // Look for preview images in the Facebook debug tool
-      const previewImg = $('img.image_fullwidth').attr('src');
-      if (previewImg) {
-        return await downloadAndProcessMedia(previewImg, 'image', url, uploadsDir);
-      }
-    } catch (previewError) {
-      console.log("Preview extraction failed for Facebook");
-    }
-    
-    // Eighth attempt: Handle Facebook Reels specifically
-    if (url.includes('/reel/') || url.includes('/reels/')) {
-      try {
-        // Request the reel page with browser-like headers
-        const reelResponse = await axios.get(url, {
-          timeout: 30000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.facebook.com/'
-          }
-        });
-        
-        const htmlContent = reelResponse.data;
-        
-        // Look for video poster or thumbnail in reels
-        const reelMatches = [
-          // Match various thumbnail patterns in reels
-          htmlContent.match(/og:image" content="([^"]+)"/),
-          htmlContent.match(/"thumbnailImage":{"uri":"([^"]+)"/),
-          htmlContent.match(/"previewImage":{"uri":"([^"]+)"/),
-          htmlContent.match(/"posterImage":{"uri":"([^"]+)"/)
-        ];
-        
-        for (const match of reelMatches) {
-          if (match && match[1]) {
-            // Found a thumbnail URL
-            const thumbnailUrl = match[1].replace(/\\/g, '');
-            return await downloadAndProcessMedia(thumbnailUrl, 'image', url, uploadsDir);
-          }
-        }
-      } catch (reelError) {
-        console.log("Reel extraction failed for Facebook:", reelError.message);
-      }
-    }
-    
-    // All attempts failed
-    throw new AppError('Could not extract media from Facebook URL. Facebook may require authentication to access this content.', 400);
-  } catch (error) {
-    // If it's already an AppError, rethrow it
-    if (error instanceof AppError) {
-      throw error;
-    }
-    throw new AppError('Failed to extract media from Facebook post: ' + error.message, 400);
-  }
-}
-
-/**
- * Extract Facebook ID from URL
- * @param {string} url - The Facebook URL
- * @returns {string|null} - The extracted Facebook ID or null
- */
-function extractFacebookId(url) {
-  try {
-    // Parse the URL
-    const fbUrl = new URL(url);
-    
-    // Check if it's a Facebook URL
-    if (!fbUrl.hostname.includes('facebook.com') && !fbUrl.hostname.includes('fb.com')) {
-      return null;
-    }
-    
-    // Get the path parts
-    const pathParts = fbUrl.pathname.split('/').filter(part => part);
-    
-    // Handle different URL formats
-    
-    // Format: facebook.com/profile.php?id=NUMERIC_ID
-    if (fbUrl.pathname.includes('profile.php')) {
-      const idParam = fbUrl.searchParams.get('id');
-      if (idParam && /^\d+$/.test(idParam)) {
-        return idParam;
-      }
-    }
-    
-    // Format: facebook.com/photo.php?fbid=NUMERIC_ID
-    if (fbUrl.pathname.includes('photo.php')) {
-      const fbidParam = fbUrl.searchParams.get('fbid');
-      if (fbidParam && /^\d+$/.test(fbidParam)) {
-        return fbidParam;
-      }
-    }
-    
-    // Format: facebook.com/GROUP_NAME/posts/POST_ID
-    if (pathParts.length >= 3 && pathParts[1] === 'posts') {
-      return pathParts[2];
-    }
-    
-    // Format: facebook.com/watch?v=VIDEO_ID
-    if (fbUrl.pathname === '/watch' && fbUrl.searchParams.has('v')) {
-      return fbUrl.searchParams.get('v');
-    }
-    
-    // Format: facebook.com/PAGE_ID
-    if (pathParts.length === 1 && /^\d+$/.test(pathParts[0])) {
-      return pathParts[0];
-    }
-    
-    // Format: facebook.com/reel/REEL_ID
-    if (pathParts.length >= 2 && pathParts[0] === 'reel') {
-      return pathParts[1];
-    }
-    
-    // Format: facebook.com/PAGENAME (try to use the username)
-    if (pathParts.length === 1) {
-      return pathParts[0];
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error extracting Facebook ID:", error);
-    return null;
   }
 }
 
@@ -610,163 +304,18 @@ async function extractFromInstagram(url, uploadsDir) {
  */
 async function extractFromTwitter(url, uploadsDir) {
   try {
-    // Print debugging info
-    console.log("Attempting to extract media from Twitter URL:", url);
-    
-    // First attempt: Try direct image extraction if the URL is already a direct media link
-    if (url.includes('pbs.twimg.com') || url.includes('video.twimg.com')) {
-      try {
-        return await downloadAndProcessMedia(url, 
-          url.includes('video') ? 'video' : 'image', 
-          url, 
-          uploadsDir);
-      } catch (directError) {
-        console.log("Direct media link extraction failed:", directError.message);
-      }
-    }
-    
-    // Second attempt: Try to get media using regular extraction
-    try {
-      return await extractFromWebsite(url, uploadsDir);
-    } catch (error) {
-      console.log("Regular extraction failed for Twitter, trying specialized approaches...");
-    }
-    
-    // Third attempt: Try fxtwitter API (a public API that returns media from tweets)
-    try {
-      // Replace twitter.com or x.com with fxtwitter.com
-      const fxUrl = url.replace(/https?:\/\/(www\.)?(twitter|x)\.com/, 'https://api.fxtwitter.com');
-      
-      const fxResponse = await axios.get(fxUrl, {
-        timeout: 30000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      });
-      
-      console.log("fxtwitter API response status:", fxResponse.status);
-      
-      if (fxResponse.data && fxResponse.data.status === "success") {
-        if (fxResponse.data.tweet?.media?.photos?.length > 0) {
-          // Extract the first photo
-          const photoUrl = fxResponse.data.tweet.media.photos[0].url;
-          return await downloadAndProcessMedia(photoUrl, 'image', url, uploadsDir);
-        } else if (fxResponse.data.tweet?.media?.videos?.length > 0) {
-          // Extract video thumbnail
-          const videoThumbnail = fxResponse.data.tweet.media.videos[0].thumbnail;
-          return await downloadAndProcessMedia(videoThumbnail, 'image', url, uploadsDir);
-        } else if (fxResponse.data.tweet.user?.avatar_url) {
-          // Last resort: use profile picture
-          return await downloadAndProcessMedia(fxResponse.data.tweet.user.avatar_url, 'image', url, uploadsDir);
-        }
-      }
-    } catch (fxError) {
-      console.log("fxtwitter API extraction failed:", fxError.message);
-    }
-    
-    // Fourth attempt: Try vxtwitter API (another alternative public API)
-    try {
-      // Replace twitter.com or x.com with vxtwitter.com
-      const vxUrl = url.replace(/https?:\/\/(www\.)?(twitter|x)\.com/, 'https://api.vxtwitter.com');
-      
-      const vxResponse = await axios.get(vxUrl, {
-        timeout: 30000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-      });
-      
-      console.log("vxtwitter API response status:", vxResponse.status);
-      
-      if (vxResponse.data) {
-        if (vxResponse.data.media_extended?.length > 0) {
-          // Extract the first media
-          const mediaUrl = vxResponse.data.media_extended[0].url;
-          return await downloadAndProcessMedia(mediaUrl, 'image', url, uploadsDir);
-        } else if (vxResponse.data.user_profile_image_url) {
-          // Last resort: use profile picture
-          return await downloadAndProcessMedia(vxResponse.data.user_profile_image_url, 'image', url, uploadsDir);
-        }
-      }
-    } catch (vxError) {
-      console.log("vxtwitter API extraction failed:", vxError.message);
-    }
-    
-    // Fifth attempt: Try Nitter API (another Twitter alternative front-end)
-    try {
-      const tweetId = extractTwitterId(url);
-      if (tweetId) {
-        // Use a Nitter instance (avoid rate limits by trying multiple)
-        const nitterInstances = [
-          'https://nitter.net',
-          'https://nitter.42l.fr',
-          'https://nitter.pussthecat.org'
-        ];
-        
-        // Try each instance until one works
-        for (const instance of nitterInstances) {
-          try {
-            const nitterUrl = `${instance}/pic/media%2F${tweetId}`;
-            
-            // Check if the URL is accessible with a HEAD request first
-            const headResponse = await axios.head(nitterUrl, {
-              timeout: 5000,
-              validateStatus: status => status < 400
-            });
-            
-            if (headResponse.status < 400) {
-              return await downloadAndProcessMedia(nitterUrl, 'image', url, uploadsDir);
-            }
-          } catch (instanceError) {
-            console.log(`Nitter instance ${instance} failed:`, instanceError.message);
-            // Continue to next instance
-          }
-        }
-      }
-    } catch (nitterError) {
-      console.log("Nitter extraction failed:", nitterError.message);
-    }
-    
-    // Sixth attempt: Try official Twitter API v2 if credentials are available
-    try {
-      const tweetId = extractTwitterId(url);
-      if (tweetId && process.env.TWITTER_BEARER_TOKEN) {
-        console.log("Attempting to use Twitter API v2 with bearer token");
-        
-        const twitterApiUrl = `https://api.twitter.com/2/tweets/${tweetId}?expansions=attachments.media_keys&media.fields=url,preview_image_url,type`;
-        
-        const twitterResponse = await axios.get(twitterApiUrl, {
-          headers: {
-            'Authorization': `Bearer ${process.env.TWITTER_BEARER_TOKEN}`
-          },
-          timeout: 10000
-        });
-        
-        if (twitterResponse.data?.includes?.media) {
-          const media = twitterResponse.data.includes.media[0];
-          const mediaUrl = media.url || media.preview_image_url;
-          
-          if (mediaUrl) {
-            return await downloadAndProcessMedia(mediaUrl, 'image', url, uploadsDir);
-          }
-        }
-      }
-    } catch (apiError) {
-      console.log("Twitter API v2 extraction failed:", apiError.message);
-    }
-    
-    // Seventh attempt: Try syndication approach
+    // Check if syndication should be attempted first
     const useAlternatives = aiConfig.urlExtraction.socialMedia?.useAlternatives !== false;
     const useSyndication = aiConfig.urlExtraction.socialMedia?.platforms?.twitter?.useSyndication !== false;
     
     if (useAlternatives && useSyndication) {
+      // Replace twitter.com with syndication.twitter.com to get public content without authentication
+      const syndicationUrl = url.replace(/https?:\/\/(www\.)?twitter\.com/, 'https://syndication.twitter.com');
+      
       try {
-        // Replace twitter.com with syndication.twitter.com
-        const syndicationUrl = url.replace(/https?:\/\/(www\.)?(twitter|x)\.com/, 'https://syndication.twitter.com');
-        
         const response = await axios.get(syndicationUrl, {
           responseType: 'text',
-          timeout: aiConfig.urlExtraction?.timeout || 30000,
+          timeout: aiConfig.urlExtraction.timeout,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
           }
@@ -775,10 +324,11 @@ async function extractFromTwitter(url, uploadsDir) {
         // Use dynamic cheerio loading
         const $ = await loadCheerio(response.data);
         
-        // Look for media elements
+        // Check for images
         let mediaUrl = null;
         let mediaType = 'image';
         
+        // Look for media elements
         const photoContainer = $('.EmbeddedTweet-tweetPhoto');
         if (photoContainer.length > 0) {
           const img = photoContainer.find('img').first();
@@ -804,191 +354,15 @@ async function extractFromTwitter(url, uploadsDir) {
           return await downloadAndProcessMedia(mediaUrl, mediaType, url, uploadsDir);
         }
       } catch (syndicationError) {
-        console.log("Syndication extraction failed for Twitter:", syndicationError.message);
+        console.error('Error accessing syndication URL:', syndicationError);
+        // Fall back to regular extraction if syndication fails
       }
     }
     
-    // Eighth attempt: Try to extract using Twitter's publish API
-    try {
-      // Extract the tweet ID from the URL
-      const tweetId = extractTwitterId(url);
-      if (!tweetId) {
-        console.log("Could not extract tweet ID from URL");
-      } else {
-        console.log("Extracted tweet ID:", tweetId);
-        
-        const publishUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}`;
-        const publishResponse = await axios.get(publishUrl, {
-          timeout: 30000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-          }
-        });
-        
-        if (publishResponse.data && publishResponse.data.html) {
-          // Extract image from the HTML
-          const htmlContent = publishResponse.data.html;
-          const $ = await loadCheerio(htmlContent);
-          
-          // Look for image in the embedded content
-          const imgSrc = $('img').attr('src');
-          if (imgSrc) {
-            return await downloadAndProcessMedia(imgSrc, 'image', url, uploadsDir);
-          }
-        }
-      }
-    } catch (publishError) {
-      console.log("Publish API extraction failed for Twitter:", publishError.message);
-    }
-    
-    // Ninth attempt: Try the alternate static API
-    try {
-      // Extract the tweet ID from the URL
-      const tweetId = extractTwitterId(url);
-      if (!tweetId) {
-        console.log("Could not extract tweet ID from URL for static API");
-      } else {
-        console.log("Using tweet ID for static API:", tweetId);
-        
-        // Try to get the tweet photo from unofficial API
-        const staticUrl = `https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}`;
-        const staticResponse = await axios.get(staticUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-          }
-        });
-        
-        console.log("Static API response status:", staticResponse.status);
-        
-        if (staticResponse.data) {
-          // Check for images
-          if (staticResponse.data.photos && staticResponse.data.photos.length > 0) {
-            const photoUrl = staticResponse.data.photos[0].url;
-            return await downloadAndProcessMedia(photoUrl, 'image', url, uploadsDir);
-          }
-          
-          // Check for video
-          if (staticResponse.data.video && staticResponse.data.video.poster) {
-            const videoThumbnail = staticResponse.data.video.poster;
-            return await downloadAndProcessMedia(videoThumbnail, 'image', url, uploadsDir);
-          }
-          
-          // Check for profile picture as last resort
-          if (staticResponse.data.user && staticResponse.data.user.profile_image_url) {
-            const profilePic = staticResponse.data.user.profile_image_url;
-            // Get a larger version of the profile pic
-            const largerProfilePic = profilePic.replace('_normal', '_400x400');
-            return await downloadAndProcessMedia(largerProfilePic, 'image', url, uploadsDir);
-          }
-        }
-      }
-    } catch (staticError) {
-      console.log("Static API extraction failed for Twitter:", staticError.message);
-    }
-    
-    // Tenth attempt: Try direct request with browser-like headers
-    try {
-      const browserLikeHeaders = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'max-age=0',
-        'Connection': 'keep-alive',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
-      };
-      
-      const directResponse = await axios.get(url, {
-        headers: browserLikeHeaders,
-        timeout: 30000
-      });
-      
-      const htmlContent = directResponse.data;
-      
-      // Try to find image URLs using regex
-      const imgMatches = [
-        // Various patterns to extract images from Twitter HTML
-        htmlContent.match(/<meta property="og:image" content="([^"]+)"/i),
-        htmlContent.match(/https:\/\/pbs\.twimg\.com\/media\/[^\.]+\.[^"]+/g),
-        htmlContent.match(/https:\/\/pbs\.twimg\.com\/profile_images\/[^\.]+\.[^"]+/g),
-        htmlContent.match(/\\"profile_image_url_https\\":\\"([^"\\]+)\\"/i),
-        // New patterns for X.com
-        htmlContent.match(/\\"media_url_https\\":\\"([^"\\]+)\\"/i),
-        htmlContent.match(/\\"expanded_url\\":\\"([^"\\]+\\\/photo\\\/)([^"\\]+)\\"/i)
-      ];
-      
-      for (const match of imgMatches) {
-        if (match && (match[1] || match[0])) {
-          const imgUrl = match[1] || match[0];
-          const cleanImgUrl = imgUrl.replace(/\\/g, '');
-          return await downloadAndProcessMedia(cleanImgUrl, 'image', url, uploadsDir);
-        }
-      }
-    } catch (directError) {
-      console.log("Direct extraction with browser headers failed:", directError.message);
-    }
-    
-    // All attempts failed
-    throw new AppError('Could not extract media from Twitter/X URL. Try using a direct image URL from Twitter instead.', 400);
+    // If syndication approach failed or was disabled, try normal website extraction
+    return await extractFromWebsite(url, uploadsDir);
   } catch (error) {
-    // If it's already an AppError, rethrow it
-    if (error instanceof AppError) {
-      throw error;
-    }
-    throw new AppError('Failed to extract media from Twitter/X post: ' + error.message, 400);
-  }
-}
-
-/**
- * Extract Twitter ID from URL
- * @param {string} url - The Twitter URL
- * @returns {string|null} - The extracted tweet ID or null
- */
-function extractTwitterId(url) {
-  try {
-    // Convert URL to URL object
-    const twitterUrl = new URL(url);
-    
-    // Check if it's a Twitter URL
-    if (!twitterUrl.hostname.includes('twitter.com') && !twitterUrl.hostname.includes('x.com')) {
-      return null;
-    }
-    
-    // Extract the path parts
-    const pathParts = twitterUrl.pathname.split('/').filter(part => part);
-    
-    // Check for standard tweet format: /username/status/id
-    if (pathParts.length >= 3 && (pathParts[1] === 'status' || pathParts[1] === 'statuses')) {
-      return pathParts[2].split('?')[0]; // Remove any query parameters
-    }
-    
-    // Check for alternate format: /i/web/status/id
-    if (pathParts.length >= 4 && pathParts[0] === 'i' && pathParts[1] === 'web' && pathParts[2] === 'status') {
-      return pathParts[3].split('?')[0]; // Remove any query parameters
-    }
-    
-    // Check for the new X.com format: /i/status/id
-    if (pathParts.length >= 3 && pathParts[0] === 'i' && pathParts[1] === 'status') {
-      return pathParts[2].split('?')[0]; // Remove any query parameters
-    }
-    
-    // Check for short URLs
-    if (twitterUrl.hostname.includes('t.co')) {
-      // t.co URLs require following redirects, we can't extract ID directly
-      return null;
-    }
-    
-    // Try to extract from query parameters (some Twitter URLs use this format)
-    if (twitterUrl.searchParams.has('tweet_id')) {
-      return twitterUrl.searchParams.get('tweet_id');
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error extracting Twitter ID:", error.message);
-    return null;
+    throw new AppError('Could not extract media from Twitter/X URL.', 400);
   }
 }
 
