@@ -28,7 +28,8 @@ mediaRouter.get(
   asyncHandler(checkAIAvailability)
 );
 
-// Upload single media file
+// Upload single media file or from URL
+// Accepts either a file upload or a mediaUrl in the request body
 mediaRouter.post(
   "/upload",
   isAuthenticated(),
@@ -37,7 +38,8 @@ mediaRouter.post(
   asyncHandler(uploadMedia)
 );
 
-// Upload multiple media files
+// Upload multiple media files or from URLs
+// Accepts either file uploads or mediaUrls array in the request body
 mediaRouter.post(
   "/upload-multiple",
   isAuthenticated(),

@@ -1,0 +1,486 @@
+import axios from 'axios';
+import cheerio from 'cheerio';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
+import { promises as fsPromises } from 'fs';
+import { AppError } from '../../utils/appError.js';
+import { messages } from '../../utils/constants/messages.js';
+import { aiConfig } from '../../config/ai.config.js';
+
+// Get the directory name
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * Social media platform API identifiers
+ */
+const SOCIAL_PLATFORMS = {
+  FACEBOOK: 'facebook',
+  INSTAGRAM: 'instagram',
+  TWITTER: 'twitter',
+  TIKTOK: 'tiktok',
+  YOUTUBE: 'youtube',
+  UNKNOWN: 'unknown'
+};
+
+/**
+ * Extract media from a URL
+ * @param {string} url - The URL to extract media from
+ * @returns {Promise<Object>} - The extracted media object with path, mimetype, and type
+ */
+export const extractMediaFromUrl = async (url) => {
+  try {
+    // Check if URL extraction is enabled
+    if (!aiConfig.urlExtraction.enabled) {
+      throw new AppError('URL content extraction is disabled', 400);
+    }
+    
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(__dirname, '../../../uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // First, identify if this is a social media URL and what platform
+    const platform = identifySocialPlatform(url);
+    
+    // Handle based on platform type
+    if (platform !== SOCIAL_PLATFORMS.UNKNOWN && aiConfig.urlExtraction.socialMedia.enabled) {
+      return await extractFromSocialMedia(url, platform, uploadsDir);
+    }
+    
+    // For regular websites, proceed with normal extraction
+    return await extractFromWebsite(url, uploadsDir);
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    
+    // Handle axios specific errors
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      throw new AppError(`Error fetching URL: ${error.response.status} - ${error.response.statusText}`, 400);
+    } else if (error.request) {
+      // The request was made but no response was received
+      throw new AppError(`No response received from URL: ${error.message}`, 400);
+    } else if (error.code === 'ECONNABORTED') {
+      // Timeout error
+      throw new AppError(`Request timeout: URL took too long to respond`, 400);
+    } else if (error.code === 'ERR_FR_MAX_BODY_LENGTH_EXCEEDED' || error.message.includes('maxContentLength')) {
+      // File size exceeded
+      throw new AppError(`File size exceeds the maximum allowed size`, 400);
+    }
+    
+    // Generic error
+    throw new AppError(`Error extracting media from URL: ${error.message}`, 500);
+  }
+};
+
+/**
+ * Identify which social media platform a URL is from
+ * @param {string} url - The URL to check
+ * @returns {string} - The platform identifier
+ */
+function identifySocialPlatform(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    
+    if (hostname.includes('facebook.com') || hostname.includes('fb.com') || hostname.includes('fb.watch')) {
+      return SOCIAL_PLATFORMS.FACEBOOK;
+    } else if (hostname.includes('instagram.com') || hostname.includes('instagr.am')) {
+      return SOCIAL_PLATFORMS.INSTAGRAM;
+    } else if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
+      return SOCIAL_PLATFORMS.TWITTER;
+    } else if (hostname.includes('tiktok.com')) {
+      return SOCIAL_PLATFORMS.TIKTOK;
+    } else if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
+      return SOCIAL_PLATFORMS.YOUTUBE;
+    }
+    
+    return SOCIAL_PLATFORMS.UNKNOWN;
+  } catch (error) {
+    console.error('Error parsing URL:', error);
+    return SOCIAL_PLATFORMS.UNKNOWN;
+  }
+}
+
+/**
+ * Extract media from a standard website
+ * @param {string} url - The URL to extract from
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function extractFromWebsite(url, uploadsDir) {
+  // Make a request to the URL with timeout from configuration
+  const response = await axios.get(url, {
+    responseType: 'text',
+    timeout: aiConfig.urlExtraction.timeout,
+    headers: {
+      'User-Agent': aiConfig.urlExtraction.socialMedia.userAgent
+    }
+  });
+
+  // Parse the HTML content
+  const $ = cheerio.load(response.data);
+  
+  // First try to find Open Graph meta tags for images or videos
+  let mediaUrl = $('meta[property="og:image"]').attr('content') || 
+                $('meta[property="og:image:url"]').attr('content');
+  let mediaType = 'image';
+  
+  // If no image found, try to find video
+  if (!mediaUrl) {
+    mediaUrl = $('meta[property="og:video"]').attr('content') || 
+               $('meta[property="og:video:url"]').attr('content') ||
+               $('meta[property="og:video:secure_url"]').attr('content');
+    mediaType = 'video';
+  }
+  
+  // If no Open Graph tags, look for Twitter cards
+  if (!mediaUrl) {
+    mediaUrl = $('meta[name="twitter:image"]').attr('content');
+    mediaType = 'image';
+    
+    if (!mediaUrl) {
+      mediaUrl = $('meta[name="twitter:player:stream"]').attr('content');
+      mediaType = 'video';
+    }
+  }
+  
+  // If no Open Graph or Twitter tags, look for regular image/video tags
+  if (!mediaUrl) {
+    // Look for the largest image
+    let maxSize = 0;
+    $('img').each((i, el) => {
+      const width = parseInt($(el).attr('width') || '0', 10);
+      const height = parseInt($(el).attr('height') || '0', 10);
+      const size = width * height;
+      if (size > maxSize && $(el).attr('src')) {
+        maxSize = size;
+        mediaUrl = $(el).attr('src');
+        mediaType = 'image';
+      }
+    });
+    
+    // If no suitable image found, look for video
+    if (!mediaUrl) {
+      $('video source').each((i, el) => {
+        if ($(el).attr('src')) {
+          mediaUrl = $(el).attr('src');
+          mediaType = 'video';
+        }
+      });
+    }
+  }
+  
+  // Handle relative URLs
+  if (mediaUrl && !mediaUrl.startsWith('http')) {
+    const urlObj = new URL(url);
+    const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+    
+    if (mediaUrl.startsWith('/')) {
+      mediaUrl = `${baseUrl}${mediaUrl}`;
+    } else {
+      mediaUrl = `${baseUrl}/${mediaUrl}`;
+    }
+  }
+  
+  // If no media found
+  if (!mediaUrl) {
+    throw new AppError('No media found in the provided URL', 400);
+  }
+  
+  // Download and process the media
+  return await downloadAndProcessMedia(mediaUrl, mediaType, url, uploadsDir);
+}
+
+/**
+ * Extract media from a social media post
+ * @param {string} url - The URL to extract from
+ * @param {string} platform - The social platform identifier
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function extractFromSocialMedia(url, platform, uploadsDir) {
+  switch (platform) {
+    case SOCIAL_PLATFORMS.FACEBOOK:
+      return await extractFromFacebook(url, uploadsDir);
+    case SOCIAL_PLATFORMS.INSTAGRAM:
+      return await extractFromInstagram(url, uploadsDir);
+    case SOCIAL_PLATFORMS.TWITTER:
+      return await extractFromTwitter(url, uploadsDir);
+    case SOCIAL_PLATFORMS.TIKTOK:
+      return await extractFromTikTok(url, uploadsDir);
+    case SOCIAL_PLATFORMS.YOUTUBE:
+      return await extractFromYouTube(url, uploadsDir);
+    default:
+      throw new AppError('Unsupported social media platform', 400);
+  }
+}
+
+/**
+ * Extract media from a Facebook post
+ * @param {string} url - The Facebook post URL
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function extractFromFacebook(url, uploadsDir) {
+  // Check if Facebook extraction is enabled
+  if (!aiConfig.urlExtraction.socialMedia.platforms.facebook.enabled) {
+    throw new AppError('Facebook URL extraction is disabled', 400);
+  }
+  
+  // Facebook requires authentication for most content
+  // We'll use a public approach by treating it as a regular website first
+  try {
+    // Try to get the media using normal website extraction
+    return await extractFromWebsite(url, uploadsDir);
+  } catch (error) {
+    // If that fails and alternative URLs are enabled, try the mobile version
+    if (aiConfig.urlExtraction.socialMedia.useAlternatives && 
+        aiConfig.urlExtraction.socialMedia.platforms.facebook.useMobileVersion) {
+      const mobileUrl = url.replace('www.facebook.com', 'm.facebook.com');
+      
+      try {
+        return await extractFromWebsite(mobileUrl, uploadsDir);
+      } catch (secondError) {
+        throw new AppError('Could not extract media from Facebook URL. Facebook may require authentication to access this content.', 400);
+      }
+    } else {
+      throw new AppError('Could not extract media from Facebook URL. Facebook may require authentication to access this content.', 400);
+    }
+  }
+}
+
+/**
+ * Extract media from an Instagram post
+ * @param {string} url - The Instagram post URL
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function extractFromInstagram(url, uploadsDir) {
+  // Check if Instagram extraction is enabled
+  if (!aiConfig.urlExtraction.socialMedia.platforms.instagram.enabled) {
+    throw new AppError('Instagram URL extraction is disabled', 400);
+  }
+  
+  // Instagram requires authentication for most content
+  // We'll use a public approach by treating it as a regular website first
+  try {
+    // Try to get the media using normal website extraction
+    return await extractFromWebsite(url, uploadsDir);
+  } catch (error) {
+    throw new AppError('Could not extract media from Instagram URL. Instagram may require authentication to access this content.', 400);
+  }
+}
+
+/**
+ * Extract media from a Twitter/X post
+ * @param {string} url - The Twitter post URL
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function extractFromTwitter(url, uploadsDir) {
+  // Check if Twitter extraction is enabled
+  if (!aiConfig.urlExtraction.socialMedia.platforms.twitter.enabled) {
+    throw new AppError('Twitter/X URL extraction is disabled', 400);
+  }
+  
+  try {
+    // Check if syndication is enabled and we should try that approach first
+    if (aiConfig.urlExtraction.socialMedia.useAlternatives && 
+        aiConfig.urlExtraction.socialMedia.platforms.twitter.useSyndication) {
+      // Replace twitter.com with syndication.twitter.com to get public content without authentication
+      const syndicationUrl = url.replace(/https?:\/\/(www\.)?twitter\.com/, 'https://syndication.twitter.com');
+      
+      try {
+        const response = await axios.get(syndicationUrl, {
+          responseType: 'text',
+          timeout: aiConfig.urlExtraction.timeout,
+          headers: {
+            'User-Agent': aiConfig.urlExtraction.socialMedia.userAgent
+          }
+        });
+        
+        const $ = cheerio.load(response.data);
+        
+        // Check for images
+        let mediaUrl = null;
+        let mediaType = 'image';
+        
+        // Look for media elements
+        const photoContainer = $('.EmbeddedTweet-tweetPhoto');
+        if (photoContainer.length > 0) {
+          const img = photoContainer.find('img').first();
+          if (img.length > 0) {
+            mediaUrl = img.attr('src');
+            mediaType = 'image';
+          }
+        }
+        
+        // Check for videos
+        if (!mediaUrl) {
+          const videoContainer = $('.EmbeddedTweet-video');
+          if (videoContainer.length > 0) {
+            const video = videoContainer.find('video source').first();
+            if (video.length > 0) {
+              mediaUrl = video.attr('src');
+              mediaType = 'video';
+            }
+          }
+        }
+        
+        if (mediaUrl) {
+          return await downloadAndProcessMedia(mediaUrl, mediaType, url, uploadsDir);
+        }
+      } catch (syndicationError) {
+        console.error('Error accessing syndication URL:', syndicationError);
+        // Fall back to regular extraction if syndication fails
+      }
+    }
+    
+    // If syndication approach failed or was disabled, try normal website extraction
+    return await extractFromWebsite(url, uploadsDir);
+  } catch (error) {
+    throw new AppError('Could not extract media from Twitter/X URL.', 400);
+  }
+}
+
+/**
+ * Extract media from a TikTok post
+ * @param {string} url - The TikTok post URL
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function extractFromTikTok(url, uploadsDir) {
+  // Check if TikTok extraction is enabled
+  if (!aiConfig.urlExtraction.socialMedia.platforms.tiktok.enabled) {
+    throw new AppError('TikTok URL extraction is disabled', 400);
+  }
+  
+  try {
+    // TikTok is particularly difficult to scrape
+    // We'll try the normal website extraction first
+    return await extractFromWebsite(url, uploadsDir);
+  } catch (error) {
+    throw new AppError('Could not extract media from TikTok URL. TikTok videos may require special handling.', 400);
+  }
+}
+
+/**
+ * Extract media from a YouTube video
+ * @param {string} url - The YouTube video URL
+ * @param {string} uploadsDir - The directory to save files to
+ * @returns {Promise<Object>} - The extracted media data
+ */
+async function extractFromYouTube(url, uploadsDir) {
+  // Check if YouTube extraction is enabled
+  if (!aiConfig.urlExtraction.socialMedia.platforms.youtube.enabled) {
+    throw new AppError('YouTube URL extraction is disabled', 400);
+  }
+  
+  try {
+    // Extract the video ID
+    let videoId = '';
+    const urlObj = new URL(url);
+    
+    if (urlObj.hostname.includes('youtu.be')) {
+      videoId = urlObj.pathname.substring(1);
+    } else if (urlObj.searchParams.has('v')) {
+      videoId = urlObj.searchParams.get('v');
+    } else {
+      throw new AppError('Could not extract YouTube video ID from URL', 400);
+    }
+    
+    // Check if thumbnail extraction is enabled
+    if (aiConfig.urlExtraction.socialMedia.platforms.youtube.useThumbnail) {
+      // YouTube video thumbnail URL
+      const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+      
+      // We'll use the thumbnail image as proxy for the video
+      return await downloadAndProcessMedia(thumbnailUrl, 'image', url, uploadsDir);
+    } else {
+      // Try regular website extraction
+      return await extractFromWebsite(url, uploadsDir);
+    }
+  } catch (error) {
+    throw new AppError(`Could not extract media from YouTube URL: ${error.message}`, 400);
+  }
+}
+
+/**
+ * Download media from URL and process it
+ * @param {string} mediaUrl - The URL of the media to download
+ * @param {string} mediaType - The type of media (image/video)
+ * @param {string} sourceUrl - The original URL the media was found on
+ * @param {string} uploadsDir - The directory to save the file to
+ * @returns {Promise<Object>} - The processed media data
+ */
+async function downloadAndProcessMedia(mediaUrl, mediaType, sourceUrl, uploadsDir) {
+  // Download the media with maxFileSize and timeout from configuration
+  const mediaResponse = await axios({
+    method: 'get',
+    url: mediaUrl,
+    responseType: 'arraybuffer',
+    timeout: aiConfig.urlExtraction.timeout,
+    maxContentLength: aiConfig.urlExtraction.maxFileSize,
+    maxBodyLength: aiConfig.urlExtraction.maxFileSize,
+    headers: {
+      'User-Agent': aiConfig.urlExtraction.socialMedia.userAgent
+    }
+  });
+  
+  // Check if the file size exceeds the limit
+  if (mediaResponse.data.length > aiConfig.urlExtraction.maxFileSize) {
+    throw new AppError(`File size exceeds the maximum allowed size of ${aiConfig.urlExtraction.maxFileSize} bytes`, 400);
+  }
+  
+  // Determine the content type and file extension
+  const contentType = mediaResponse.headers['content-type'];
+  let fileExtension;
+  
+  if (contentType.startsWith('image/')) {
+    mediaType = 'image';
+    fileExtension = contentType.split('/')[1].split(';')[0].toLowerCase();
+    
+    // Ensure the extension is in the supported formats
+    if (!aiConfig.supportedFormats.image.includes(fileExtension)) {
+      fileExtension = 'jpg'; // Default to jpg if not supported
+    }
+  } else if (contentType.startsWith('video/')) {
+    mediaType = 'video';
+    fileExtension = contentType.split('/')[1].split(';')[0].toLowerCase();
+    
+    // Ensure the extension is in the supported formats
+    if (!aiConfig.supportedFormats.video.includes(fileExtension)) {
+      fileExtension = 'mp4'; // Default to mp4 if not supported
+    }
+  } else {
+    throw new AppError('Unsupported media type: ' + contentType, 400);
+  }
+  
+  // Generate a unique filename
+  const filename = `url_extracted_${uuidv4()}.${fileExtension}`;
+  const filePath = path.join(uploadsDir, filename);
+  
+  // Save the file
+  await fsPromises.writeFile(filePath, Buffer.from(mediaResponse.data));
+  
+  // Create a mock file object similar to multer's file object
+  const fileObject = {
+    path: filePath,
+    mimetype: contentType,
+    originalname: filename,
+    size: mediaResponse.data.length
+  };
+  
+  return {
+    file: fileObject,
+    mediaType,
+    sourceUrl
+  };
+} 

@@ -30,6 +30,11 @@ export const uploadMultiple = multer({
 // Middleware wrapper for single file upload
 export const handleSingleUpload = () => {
   return (req, res, next) => {
+    // Check if there's a mediaUrl in the body, and skip file upload in that case
+    if (req.body && req.body.mediaUrl) {
+      return next();
+    }
+    
     uploadSingle(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         // A Multer error occurred
@@ -49,6 +54,11 @@ export const handleSingleUpload = () => {
 // Middleware wrapper for multiple file upload
 export const handleMultipleUploads = () => {
   return (req, res, next) => {
+    // Check if there's a mediaUrls array in the body, and skip file upload in that case
+    if (req.body && req.body.mediaUrls && req.body.mediaUrls.length > 0) {
+      return next();
+    }
+    
     uploadMultiple(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         // A Multer error occurred

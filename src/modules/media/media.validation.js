@@ -1,5 +1,12 @@
 import Joi from "joi";
 
+/**
+ * Validation schema for media upload operations
+ * Supports both direct file uploads and URL-based uploads
+ * For file uploads: Submit a file with field name 'file'
+ * For URL uploads: Submit a 'mediaUrl' field in the request body
+ * For multiple URL uploads: Submit a 'mediaUrls' array in the request body
+ */
 export const uploadMediaVal = {
   body: Joi.object({
     title: Joi.string().trim(),
@@ -10,7 +17,18 @@ export const uploadMediaVal = {
     skipAI: Joi.boolean().default(false),
     aiOptions: Joi.object({
       saveResults: Joi.boolean().default(true)
-    }).default({})
+    }).default({}),
+    // For single URL upload
+    mediaUrl: Joi.string().uri().messages({
+      'string.uri': 'Media URL must be a valid URL'
+    }),
+    // For multiple URL uploads
+    mediaUrls: Joi.array().items(
+      Joi.string().uri().required().messages({
+        'string.uri': 'Each media URL must be a valid URL',
+        'string.empty': 'Media URL cannot be empty'
+      })
+    )
   })
 };
 

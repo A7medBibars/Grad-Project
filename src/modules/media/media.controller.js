@@ -15,6 +15,7 @@ import fs from "fs";
 import path from "path";
 import axios from "axios";
 import { promises as fsPromises } from "fs";
+import { extractMediaFromUrl } from "./url-extraction.service.js";
 const { unlink: unlinkAsync } = fsPromises;
 
 // Upload a single file
@@ -23,12 +24,29 @@ export const uploadMedia = async (req, res, next) => {
   const savedMediaIds = [];
   let cloudinaryResult = null;
   let mediaData = {};
+  let file = null;
+  let isExtractedFile = false;
   
   try {
-    // get data
-    const file = req.file;
+    // Check if a URL was provided
+    const { mediaUrl } = req.body;
+    
+    if (mediaUrl) {
+      // Extract media from URL
+      console.log(`Extracting media from URL: ${mediaUrl}`);
+      const extractionResult = await extractMediaFromUrl(mediaUrl);
+      file = extractionResult.file;
+      isExtractedFile = true;
+      
+      // Add source URL to the metadata
+      mediaData.sourceUrl = mediaUrl;
+    } else {
+      // Use the uploaded file
+      file = req.file;
+    }
+    
     if (!file) {
-      return next(new AppError(messages.media.fileRequired, 400));
+      return next(new AppError('No file uploaded and no mediaUrl provided. Please either upload a file or provide a mediaUrl.', 400));
     }
     
     // Log file object structure for debugging
@@ -54,6 +72,7 @@ export const uploadMedia = async (req, res, next) => {
 
     // prepare media data
     mediaData = {
+      ...mediaData, // Keep any existing properties like sourceUrl
       title,
       description,
       fileUrl: cloudinaryResult.url,
@@ -63,7 +82,7 @@ export const uploadMedia = async (req, res, next) => {
       size: file.size,
       collectionId: collectionId || null,
       uploadedBy: req.authUser._id,
-      metadata: {} // Initialize metadata field
+      metadata: mediaData.metadata || {} // Initialize metadata field
     };
 
     // Process with AI model if it's an image or video
@@ -240,34 +259,92 @@ export const uploadMedia = async (req, res, next) => {
       }
     }
     
+    // Clean up temporarily extracted files if they exist
+    if (isExtractedFile && file && file.path) {
+      try {
+        await unlinkAsync(file.path);
+        console.log(`Cleaned up temporary file: ${file.path}`);
+      } catch (cleanupError) {
+        console.error(`Error cleaning up temporary file: ${cleanupError.message}`);
+      }
+    }
+    
     return next(new AppError(error.message || 'Error uploading media', 500));
   }
 };
 
 // Upload multiple files
 export const uploadMultipleMedia = async (req, res, next) => {
-  // Arrays to track what we've created for cleanup in case of error
-  const uploadedFiles = [];
+  // Arrays to track created/uploaded resources for error handling and rollback
   const savedMediaIds = [];
-  const savedRecordIds = [];
-  const aiResults = [];
-
+  const uploadedFiles = [];
+  const extractedFiles = [];
+  let isAIServerAvailable = false;
+  
   try {
-    // get data
-    const files = req.files;
-    if (!files || files.length === 0) {
-      return next(new AppError(messages.media.filesRequired, 400));
+    // Check if AI server is available
+    isAIServerAvailable = await checkAIServerAvailability();
+    
+    // Get data from request
+    const { files } = req;
+    const { title, description, collectionId, mediaUrls } = req.body;
+    
+    // Handle case when neither files nor media URLs are provided
+    if ((!files || !files.length) && (!mediaUrls || !mediaUrls.length)) {
+      return next(new AppError('No files uploaded and no mediaUrls provided. Please either upload files or provide mediaUrls.', 400));
     }
-    const { title, description, collectionId } = req.body;
-
-    // Check if AI server is available once for all files
-    const isAIServerAvailable = await checkAIServerAvailability();
-
-    // process each file
-    const uploadPromises = files.map(async (file, index) => {
+    
+    // Process all files - both uploaded files and extracted from URLs
+    let allFiles = [];
+    
+    // Add uploaded files
+    if (files && files.length) {
+      allFiles = [...files];
+    }
+    
+    // Process media URLs if provided
+    if (mediaUrls && mediaUrls.length) {
+      try {
+        // Extract media from each URL
+        const urlPromises = mediaUrls.map(async (url) => {
+          try {
+            console.log(`Extracting media from URL: ${url}`);
+            const extractionResult = await extractMediaFromUrl(url);
+            extractedFiles.push(extractionResult.file);
+            return {
+              file: extractionResult.file,
+              sourceUrl: url
+            };
+          } catch (error) {
+            console.error(`Error extracting media from URL ${url}:`, error.message);
+            return null;
+          }
+        });
+        
+        const extractedResults = await Promise.all(urlPromises);
+        const validExtractedResults = extractedResults.filter(result => result !== null);
+        
+        // Add extracted files to all files
+        allFiles = [
+          ...allFiles,
+          ...validExtractedResults.map(result => ({
+            ...result.file,
+            sourceUrl: result.sourceUrl
+          }))
+        ];
+      } catch (error) {
+        console.error('Error processing media URLs:', error.message);
+      }
+    }
+    
+    if (allFiles.length === 0) {
+      return next(new AppError('No valid files were found to upload', 400));
+    }
+    
+    // Process each file
+    const uploadPromises = allFiles.map(async (file, index) => {
       let cloudinaryResult = null;
       let aiResult = null;
-      let savedRecord = null;
       
       try {
         // upload to cloudinary
@@ -296,6 +373,11 @@ export const uploadMultipleMedia = async (req, res, next) => {
           uploadedBy: req.authUser._id,
           metadata: {} // Initialize metadata field
         };
+        
+        // Add source URL to metadata if available
+        if (file.sourceUrl) {
+          mediaData.metadata.sourceUrl = file.sourceUrl;
+        }
 
         // Process with AI model if it's an image or video and AI server is available
         if ((cloudinaryResult.resource_type === 'image' || cloudinaryResult.resource_type === 'video') && isAIServerAvailable) {
@@ -503,6 +585,18 @@ export const uploadMultipleMedia = async (req, res, next) => {
         console.error('Error cleaning up media:', cleanupError);
       }
     }
+    
+    // Clean up temporarily extracted files
+    await Promise.all(extractedFiles.map(async (file) => {
+      try {
+        if (file && file.path) {
+          await unlinkAsync(file.path);
+          console.log(`Cleaned up temporary file: ${file.path}`);
+        }
+      } catch (cleanupError) {
+        console.error(`Error cleaning up temporary file: ${cleanupError.message}`);
+      }
+    }));
     
     return next(error instanceof AppError ? error : new AppError(error.message || 'Error uploading media', 500));
   }
