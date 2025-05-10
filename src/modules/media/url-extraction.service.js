@@ -10,6 +10,7 @@ import { messages } from '../../utils/constants/messages.js';
 import { aiConfig } from '../../config/ai.config.js';
 import fbgraph from 'fbgraph';
 import { promisify } from 'util';
+import util from 'util';
 
 // Get the directory name
 const __filename = fileURLToPath(import.meta.url);
@@ -385,11 +386,26 @@ async function extractFromFacebook(url, uploadsDir) {
       return await fallbackFacebookExtraction(url, uploadsDir);
     } catch (error) {
       console.error('Error using Facebook Graph API:', error);
+      
+      // Check for specific error types
+      if (error.message && error.message.includes('OAuthException')) {
+        throw new AppError(
+          'Facebook API authentication failed. Please check your access token or permissions. ' +
+          'You may need to generate a new access token with proper permissions.',
+          401
+        );
+      }
+      
       // If there's an error with the Graph API, fall back to HTML extraction
       return await fallbackFacebookExtraction(url, uploadsDir);
     }
   } else {
-    // If Graph API is not enabled or configured, use HTML extraction
+    // If Graph API is not enabled or configured, provide helpful message
+    if (graphApiEnabled && !accessToken) {
+      console.warn('Facebook Graph API is enabled but no access token is configured');
+    }
+    
+    // Use HTML extraction as fallback
     return await fallbackFacebookExtraction(url, uploadsDir);
   }
 }
@@ -416,10 +432,18 @@ async function fallbackFacebookExtraction(url, uploadsDir) {
       try {
         return await extractFromWebsite(mobileUrl, uploadsDir);
       } catch (secondError) {
-        throw new AppError('Could not extract media from Facebook URL. Facebook may require authentication to access this content.', 400);
+        throw new AppError(
+          'Could not extract media from Facebook URL. Facebook requires authentication to access this content. ' +
+          'To fix this, please configure a valid Facebook Graph API access token in your environment variables.', 
+          400
+        );
       }
     } else {
-      throw new AppError('Could not extract media from Facebook URL. Facebook may require authentication to access this content.', 400);
+      throw new AppError(
+        'Could not extract media from Facebook URL. Facebook requires authentication to access this content. ' +
+        'To fix this, please configure a valid Facebook Graph API access token in your environment variables.', 
+        400
+      );
     }
   }
 }

@@ -1,71 +1,71 @@
-# Facebook Graph API Integration
+# Facebook Graph API Setup
 
-This application supports extracting media from Facebook posts using the Facebook Graph API. This provides more reliable access to media content compared to HTML scraping methods.
+This document provides instructions on how to set up Facebook Graph API credentials for enhanced media extraction from Facebook URLs.
 
-## Setup Instructions
+## Why Facebook API Access Is Needed
 
-To enable Facebook Graph API integration, follow these steps:
+Facebook restricts access to content for web scrapers and automated tools. To reliably extract media from Facebook posts, we need to use the official Facebook Graph API with proper authentication.
 
-1. **Create a Facebook Developer Account**
-   - Go to [Facebook for Developers](https://developers.facebook.com/)
-   - Sign in with your Facebook account or create a new account
+## Setup Steps
 
-2. **Create a Facebook App**
+1. **Create a Facebook Developer Account**:
+   - Go to [developers.facebook.com](https://developers.facebook.com/)
+   - Sign in with your Facebook account
+   - Complete the developer registration process if needed
+
+2. **Create a Facebook App**:
    - From the Developer Dashboard, click "Create App"
-   - Select the app type (Consumer or Business)
+   - Select "Consumer" as the app type
    - Fill in the required details and create your app
 
-3. **Configure App Settings**
-   - Navigate to the app settings
-   - Make note of your App ID and App Secret
-   - Add the necessary products to your app (e.g., Facebook Login)
+3. **Get App Credentials**:
+   - Once your app is created, go to the app dashboard
+   - Navigate to "Settings" > "Basic"
+   - Note your App ID and App Secret
 
-4. **Generate an Access Token**
-   - For basic public content access, you can use an App Token
-   - For accessing user content, you'll need a User Access Token with the appropriate permissions
-   - For long-term use, consider using a Long-Lived Access Token
+4. **Generate Access Token**:
+   - Go to "Tools" > "Graph API Explorer"
+   - Select your app from the dropdown
+   - Click "Generate Access Token"
+   - For media extraction, you need at least the following permissions:
+     - `pages_read_engagement`
+     - `user_posts`
+     - `user_photos`
+     - `user_videos`
+   - Click "Generate Access Token" and authenticate with your Facebook account
 
-5. **Set Environment Variables**
-   This application uses the following environment variables for Facebook Graph API configuration:
+5. **Configure Your Environment**:
+   - Create a `.env` file in the `config` directory (or use your existing one)
+   - Add the following entries:
 
    ```
+   FACEBOOK_APP_ID=your_app_id
+   FACEBOOK_APP_SECRET=your_app_secret
+   FACEBOOK_GRAPH_API_ACCESS_TOKEN=your_access_token
    FACEBOOK_GRAPH_API_ENABLED=true
    FACEBOOK_GRAPH_API_VERSION=v18.0
-   FACEBOOK_GRAPH_API_ACCESS_TOKEN=your_access_token_here
-   FACEBOOK_APP_ID=your_app_id_here
-   FACEBOOK_APP_SECRET=your_app_secret_here
    ```
 
-   Add these to your `.env` file in the config directory.
+## Token Limitations
 
-## Access Token Types
+Note that Facebook access tokens have limitations:
 
-### App Token
-- Suitable for accessing public content
-- Never expires
-- Format: `{app-id}|{app-secret}`
+- User access tokens typically expire in 1-2 hours
+- For longer-lasting tokens, you can convert to a long-lived access token (60 days)
+- For production use, consider using a Page access token or implement the token refresh workflow
 
-### User Access Token
-- Required for accessing user's content with their permission
-- Short-lived (usually 1-2 hours)
-- Requires user to authorize your app with the necessary permissions
+## Troubleshooting
 
-### Long-Lived Access Token
-- Extended lifetime (typically 60 days)
-- Can be refreshed before expiration
-- Recommended for production use
+If you encounter issues with Facebook API access:
 
-## Permissions
+1. **Check Permissions**: Ensure your token has the necessary permissions
+2. **Verify Token Validity**: Tokens expire - check if yours is still valid
+3. **API Versions**: Make sure you're using a supported API version
+4. **Rate Limits**: Facebook imposes rate limits on API requests
+5. **Post Privacy**: The API can only access posts you have permission to view
 
-Depending on what content you need to access, you may need different permissions:
-- `public_profile`: Basic profile information
-- `user_posts`: Access to a user's posts
-- `pages_read_engagement`: Access to page content
+## Additional Resources
 
-## Limitations
-
-Note that the Graph API has usage limits and rate limits. For high-volume applications, monitor your usage and implement rate limiting in your code.
-
-## Fallback Mechanism
-
-If the Graph API fails to retrieve media content, the application will automatically fall back to HTML scraping methods. This provides a robust solution that works even when the API is not available or properly configured. 
+- [Facebook Graph API Documentation](https://developers.facebook.com/docs/graph-api)
+- [Access Token Documentation](https://developers.facebook.com/docs/facebook-login/access-tokens)
+- [Facebook Developer Community](https://developers.facebook.com/community/) 
