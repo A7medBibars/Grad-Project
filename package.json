@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test:facebook": "node -e \"import('./src/modules/media/url-extraction.service.js').then(({extractMediaFromUrl}) => extractMediaFromUrl(process.argv[1]).then(result => console.log('Success:', JSON.stringify(result, null, 2))).catch(err => console.error('Error:', err.message)))\" "
   },
   "keywords": [],
   "author": "",

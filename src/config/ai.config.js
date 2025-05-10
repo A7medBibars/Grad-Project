@@ -101,14 +101,16 @@ export const aiConfig = {
       platforms: {
         facebook: {
           enabled: process.env.SOCIAL_MEDIA_FACEBOOK_ENABLED !== 'false',
-          useMobileVersion: true
+          useMobileVersion: true,
+          useGraphAPI: process.env.FACEBOOK_ACCESS_TOKEN ? true : false
         },
         instagram: {
           enabled: process.env.SOCIAL_MEDIA_INSTAGRAM_ENABLED !== 'false'
         },
         twitter: {
           enabled: process.env.SOCIAL_MEDIA_TWITTER_ENABLED !== 'false',
-          useSyndication: true
+          useSyndication: true,
+          useTwitterAPI: process.env.TWITTER_BEARER_TOKEN ? true : false
         },
         tiktok: {
           enabled: process.env.SOCIAL_MEDIA_TIKTOK_ENABLED !== 'false'
