@@ -460,13 +460,60 @@ async function extractFromInstagram(url, uploadsDir) {
     throw new AppError('Instagram URL extraction is disabled', 400);
   }
   
-  // Instagram requires authentication for most content
-  // We'll use a public approach by treating it as a regular website first
+  // Try multiple approaches for Instagram content
   try {
-    // Try to get the media using normal website extraction
-    return await extractFromWebsite(url, uploadsDir);
+    // First attempt: Try the standard website extraction
+    try {
+      return await extractFromWebsite(url, uploadsDir);
+    } catch (firstError) {
+      console.log('Standard extraction failed for Instagram, trying alternate methods...');
+    }
+    
+    // Second attempt: Try with a different user agent (mobile)
+    try {
+      const mobileUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/85.0.4183.109 Mobile/15E148 Safari/604.1';
+      
+      const response = await axios.get(url, {
+        responseType: 'text',
+        timeout: aiConfig.urlExtraction.timeout,
+        headers: {
+          'User-Agent': mobileUserAgent
+        }
+      });
+      
+      const $ = await loadCheerio(response.data);
+      
+      // Look for image URLs specific to Instagram
+      let mediaUrl = $('meta[property="og:image"]').attr('content');
+      let mediaType = 'image';
+      
+      if (!mediaUrl) {
+        mediaUrl = $('meta[property="og:video"]').attr('content');
+        mediaType = 'video';
+      }
+      
+      if (mediaUrl) {
+        return await downloadAndProcessMedia(mediaUrl, mediaType, url, uploadsDir);
+      }
+    } catch (secondError) {
+      console.log('Mobile user agent approach failed for Instagram');
+    }
+    
+    // If all attempts fail, throw an informative error
+    throw new AppError(
+      'Could not extract media from Instagram URL. Instagram restricts content access for non-authenticated users. ' +
+      'Try with a public Instagram post or consider using a different platform for sharing media.',
+      400
+    );
   } catch (error) {
-    throw new AppError('Could not extract media from Instagram URL. Instagram may require authentication to access this content.', 400);
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError(
+      'Could not extract media from Instagram URL. Instagram may require authentication to access this content. ' +
+      'Try with a public Instagram post or consider using a different platform for sharing media.',
+      400
+    );
   }
 }
 
@@ -583,24 +630,74 @@ async function extractFromYouTube(url, uploadsDir) {
     } else if (urlObj.searchParams.has('v')) {
       videoId = urlObj.searchParams.get('v');
     } else {
-      throw new AppError('Could not extract YouTube video ID from URL', 400);
+      // Try to extract from different URL formats
+      const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+      if (pathSegments.length > 0 && pathSegments[0] === 'watch') {
+        videoId = pathSegments[1];
+      } else if (pathSegments.length > 0 && pathSegments[0] === 'embed') {
+        videoId = pathSegments[1];
+      } else if (pathSegments.length > 0 && /^[A-Za-z0-9_-]{11}$/.test(pathSegments[pathSegments.length - 1])) {
+        // If the last segment looks like a YouTube ID (11 characters of alphanumeric + _ and -)
+        videoId = pathSegments[pathSegments.length - 1];
+      }
+    }
+    
+    if (!videoId) {
+      throw new AppError('Could not extract YouTube video ID from URL. Please ensure it is a valid YouTube video link.', 400);
     }
     
     // Check if thumbnail extraction is enabled
     const useThumbnail = aiConfig.urlExtraction.socialMedia?.platforms?.youtube?.useThumbnail !== false;
     
     if (useThumbnail) {
-      // YouTube video thumbnail URL
-      const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+      // Try different thumbnail resolutions in order of preference
+      const thumbnailUrls = [
+        `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,  // HD quality
+        `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,      // Standard quality
+        `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,      // High quality
+        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,      // Medium quality
+        `https://img.youtube.com/vi/${videoId}/default.jpg`         // Default quality
+      ];
       
-      // We'll use the thumbnail image as proxy for the video
-      return await downloadAndProcessMedia(thumbnailUrl, 'image', url, uploadsDir);
-    } else {
-      // Try regular website extraction
+      // Try each thumbnail URL until one works
+      for (const thumbnailUrl of thumbnailUrls) {
+        try {
+          console.log(`Trying YouTube thumbnail: ${thumbnailUrl}`);
+          // Check if the image exists and isn't the default "video not available" image
+          const response = await axios.head(thumbnailUrl);
+          if (response.status === 200) {
+            // Use the thumbnail image as proxy for the video
+            return await downloadAndProcessMedia(thumbnailUrl, 'image', url, uploadsDir);
+          }
+        } catch (thumbnailError) {
+          console.log(`Failed to get thumbnail ${thumbnailUrl}: ${thumbnailError.message}`);
+          continue; // Try the next thumbnail URL
+        }
+      }
+      
+      // If all thumbnail attempts fail, try the website extraction
+      console.log('All YouTube thumbnail attempts failed, trying regular website extraction');
+    }
+    
+    // Try regular website extraction as fallback
+    try {
       return await extractFromWebsite(url, uploadsDir);
+    } catch (webError) {
+      console.log('Website extraction for YouTube failed:', webError.message);
+      
+      // Last resort: use the first thumbnail and ignore errors
+      const fallbackThumbnail = `https://img.youtube.com/vi/${videoId}/0.jpg`;
+      return await downloadAndProcessMedia(fallbackThumbnail, 'image', url, uploadsDir);
     }
   } catch (error) {
-    throw new AppError(`Could not extract media from YouTube URL: ${error.message}`, 400);
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError(
+      `Could not extract media from YouTube URL: ${error.message}. ` +
+      'Please ensure it is a valid and accessible YouTube video.',
+      400
+    );
   }
 }
 
