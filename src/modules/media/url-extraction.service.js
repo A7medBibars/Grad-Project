@@ -1,5 +1,5 @@
 import axios from 'axios';
-import cheerio from 'cheerio';
+// Using dynamic import for cheerio
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,6 +26,23 @@ const SOCIAL_PLATFORMS = {
 };
 
 /**
+ * Helper function to load cheerio - will be called only when needed
+ * This avoids issues with different cheerio import formats
+ */
+async function loadCheerio(html) {
+  try {
+    // Try the dynamic import approach
+    const cheerioModule = await import('cheerio');
+    // Handle different module formats
+    const cheerio = cheerioModule.default || cheerioModule;
+    return cheerio.load(html);
+  } catch (error) {
+    console.error('Error loading cheerio:', error);
+    throw new AppError('Failed to load HTML parsing library', 500);
+  }
+}
+
+/**
  * Extract media from a URL
  * @param {string} url - The URL to extract media from
  * @returns {Promise<Object>} - The extracted media object with path, mimetype, and type
@@ -47,7 +64,7 @@ export const extractMediaFromUrl = async (url) => {
     const platform = identifySocialPlatform(url);
     
     // Handle based on platform type
-    if (platform !== SOCIAL_PLATFORMS.UNKNOWN && aiConfig.urlExtraction.socialMedia.enabled) {
+    if (platform !== SOCIAL_PLATFORMS.UNKNOWN && aiConfig.urlExtraction.socialMedia?.enabled) {
       return await extractFromSocialMedia(url, platform, uploadsDir);
     }
     
@@ -120,12 +137,12 @@ async function extractFromWebsite(url, uploadsDir) {
     responseType: 'text',
     timeout: aiConfig.urlExtraction.timeout,
     headers: {
-      'User-Agent': aiConfig.urlExtraction.socialMedia.userAgent
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
   });
 
-  // Parse the HTML content
-  const $ = cheerio.load(response.data);
+  // Use dynamic cheerio loading
+  const $ = await loadCheerio(response.data);
   
   // First try to find Open Graph meta tags for images or videos
   let mediaUrl = $('meta[property="og:image"]').attr('content') || 
@@ -135,8 +152,8 @@ async function extractFromWebsite(url, uploadsDir) {
   // If no image found, try to find video
   if (!mediaUrl) {
     mediaUrl = $('meta[property="og:video"]').attr('content') || 
-               $('meta[property="og:video:url"]').attr('content') ||
-               $('meta[property="og:video:secure_url"]').attr('content');
+              $('meta[property="og:video:url"]').attr('content') ||
+              $('meta[property="og:video:secure_url"]').attr('content');
     mediaType = 'video';
   }
   
@@ -230,19 +247,20 @@ async function extractFromSocialMedia(url, platform, uploadsDir) {
  */
 async function extractFromFacebook(url, uploadsDir) {
   // Check if Facebook extraction is enabled
-  if (!aiConfig.urlExtraction.socialMedia.platforms.facebook.enabled) {
+  if (aiConfig.urlExtraction.socialMedia?.platforms?.facebook?.enabled === false) {
     throw new AppError('Facebook URL extraction is disabled', 400);
   }
   
-  // Facebook requires authentication for most content
-  // We'll use a public approach by treating it as a regular website first
+  // Try to get the media using normal website extraction
   try {
-    // Try to get the media using normal website extraction
     return await extractFromWebsite(url, uploadsDir);
   } catch (error) {
-    // If that fails and alternative URLs are enabled, try the mobile version
-    if (aiConfig.urlExtraction.socialMedia.useAlternatives && 
-        aiConfig.urlExtraction.socialMedia.platforms.facebook.useMobileVersion) {
+    // If that fails, check if we should try alternative URLs
+    const useAlternatives = aiConfig.urlExtraction.socialMedia?.useAlternatives !== false;
+    const useMobileVersion = aiConfig.urlExtraction.socialMedia?.platforms?.facebook?.useMobileVersion !== false;
+    
+    if (useAlternatives && useMobileVersion) {
+      // Try mobile version which might be more accessible
       const mobileUrl = url.replace('www.facebook.com', 'm.facebook.com');
       
       try {
@@ -264,7 +282,7 @@ async function extractFromFacebook(url, uploadsDir) {
  */
 async function extractFromInstagram(url, uploadsDir) {
   // Check if Instagram extraction is enabled
-  if (!aiConfig.urlExtraction.socialMedia.platforms.instagram.enabled) {
+  if (aiConfig.urlExtraction.socialMedia?.platforms?.instagram?.enabled === false) {
     throw new AppError('Instagram URL extraction is disabled', 400);
   }
   
@@ -285,15 +303,12 @@ async function extractFromInstagram(url, uploadsDir) {
  * @returns {Promise<Object>} - The extracted media data
  */
 async function extractFromTwitter(url, uploadsDir) {
-  // Check if Twitter extraction is enabled
-  if (!aiConfig.urlExtraction.socialMedia.platforms.twitter.enabled) {
-    throw new AppError('Twitter/X URL extraction is disabled', 400);
-  }
-  
   try {
-    // Check if syndication is enabled and we should try that approach first
-    if (aiConfig.urlExtraction.socialMedia.useAlternatives && 
-        aiConfig.urlExtraction.socialMedia.platforms.twitter.useSyndication) {
+    // Check if syndication should be attempted first
+    const useAlternatives = aiConfig.urlExtraction.socialMedia?.useAlternatives !== false;
+    const useSyndication = aiConfig.urlExtraction.socialMedia?.platforms?.twitter?.useSyndication !== false;
+    
+    if (useAlternatives && useSyndication) {
       // Replace twitter.com with syndication.twitter.com to get public content without authentication
       const syndicationUrl = url.replace(/https?:\/\/(www\.)?twitter\.com/, 'https://syndication.twitter.com');
       
@@ -302,11 +317,12 @@ async function extractFromTwitter(url, uploadsDir) {
           responseType: 'text',
           timeout: aiConfig.urlExtraction.timeout,
           headers: {
-            'User-Agent': aiConfig.urlExtraction.socialMedia.userAgent
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
           }
         });
         
-        const $ = cheerio.load(response.data);
+        // Use dynamic cheerio loading
+        const $ = await loadCheerio(response.data);
         
         // Check for images
         let mediaUrl = null;
@@ -358,7 +374,7 @@ async function extractFromTwitter(url, uploadsDir) {
  */
 async function extractFromTikTok(url, uploadsDir) {
   // Check if TikTok extraction is enabled
-  if (!aiConfig.urlExtraction.socialMedia.platforms.tiktok.enabled) {
+  if (aiConfig.urlExtraction.socialMedia?.platforms?.tiktok?.enabled === false) {
     throw new AppError('TikTok URL extraction is disabled', 400);
   }
   
@@ -379,7 +395,7 @@ async function extractFromTikTok(url, uploadsDir) {
  */
 async function extractFromYouTube(url, uploadsDir) {
   // Check if YouTube extraction is enabled
-  if (!aiConfig.urlExtraction.socialMedia.platforms.youtube.enabled) {
+  if (aiConfig.urlExtraction.socialMedia?.platforms?.youtube?.enabled === false) {
     throw new AppError('YouTube URL extraction is disabled', 400);
   }
   
@@ -397,7 +413,9 @@ async function extractFromYouTube(url, uploadsDir) {
     }
     
     // Check if thumbnail extraction is enabled
-    if (aiConfig.urlExtraction.socialMedia.platforms.youtube.useThumbnail) {
+    const useThumbnail = aiConfig.urlExtraction.socialMedia?.platforms?.youtube?.useThumbnail !== false;
+    
+    if (useThumbnail) {
       // YouTube video thumbnail URL
       const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
       
@@ -421,22 +439,31 @@ async function extractFromYouTube(url, uploadsDir) {
  * @returns {Promise<Object>} - The processed media data
  */
 async function downloadAndProcessMedia(mediaUrl, mediaType, sourceUrl, uploadsDir) {
+  // Get default timeout and size limits
+  const timeout = aiConfig.urlExtraction?.timeout || 30000; // Default 30s
+  const maxFileSize = aiConfig.urlExtraction?.maxFileSize || 52428800; // Default 50MB
+  
+  // Use default user agent if not specified
+  const userAgent = 
+    aiConfig.urlExtraction?.socialMedia?.userAgent || 
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+  
   // Download the media with maxFileSize and timeout from configuration
   const mediaResponse = await axios({
     method: 'get',
     url: mediaUrl,
     responseType: 'arraybuffer',
-    timeout: aiConfig.urlExtraction.timeout,
-    maxContentLength: aiConfig.urlExtraction.maxFileSize,
-    maxBodyLength: aiConfig.urlExtraction.maxFileSize,
+    timeout: timeout,
+    maxContentLength: maxFileSize,
+    maxBodyLength: maxFileSize,
     headers: {
-      'User-Agent': aiConfig.urlExtraction.socialMedia.userAgent
+      'User-Agent': userAgent
     }
   });
   
   // Check if the file size exceeds the limit
-  if (mediaResponse.data.length > aiConfig.urlExtraction.maxFileSize) {
-    throw new AppError(`File size exceeds the maximum allowed size of ${aiConfig.urlExtraction.maxFileSize} bytes`, 400);
+  if (mediaResponse.data.length > maxFileSize) {
+    throw new AppError(`File size exceeds the maximum allowed size of ${maxFileSize} bytes`, 400);
   }
   
   // Determine the content type and file extension
@@ -448,7 +475,7 @@ async function downloadAndProcessMedia(mediaUrl, mediaType, sourceUrl, uploadsDi
     fileExtension = contentType.split('/')[1].split(';')[0].toLowerCase();
     
     // Ensure the extension is in the supported formats
-    if (!aiConfig.supportedFormats.image.includes(fileExtension)) {
+    if (!aiConfig.supportedFormats?.image?.includes(fileExtension)) {
       fileExtension = 'jpg'; // Default to jpg if not supported
     }
   } else if (contentType.startsWith('video/')) {
@@ -456,7 +483,7 @@ async function downloadAndProcessMedia(mediaUrl, mediaType, sourceUrl, uploadsDi
     fileExtension = contentType.split('/')[1].split(';')[0].toLowerCase();
     
     // Ensure the extension is in the supported formats
-    if (!aiConfig.supportedFormats.video.includes(fileExtension)) {
+    if (!aiConfig.supportedFormats?.video?.includes(fileExtension)) {
       fileExtension = 'mp4'; // Default to mp4 if not supported
     }
   } else {
